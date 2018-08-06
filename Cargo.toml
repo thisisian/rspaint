@@ -1,0 +1,8 @@
+[package]
+name = "rspaint"
+version = "0.1.0"
+authors = ["Ian Winter <iwinter@pdx.edu>"]
+
+[dependencies]
+gtk = "0.4.1"
+gio = "0.4.1"
