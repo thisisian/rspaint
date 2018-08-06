@@ -7,10 +7,10 @@ use gio::prelude::*;
 use gio::MenuExt;
 
 use gtk::{Button, Window, WindowType, ApplicationWindow};
+use gtk::Orientation::*;
 
 use std::env::args;
 use std::option::Option::*;
-use std::Orientation::*;
 
 fn build_ui(application: &gtk::Application) {
     let window = ApplicationWindow::new(application);
@@ -26,10 +26,22 @@ fn build_ui(application: &gtk::Application) {
     let h_box = gtk::Box::new(Horizontal, 0);
     let v_box = gtk::Box::new(Vertical, 0);
 
-    let toolbar = gtk::Toolbar::new();
 
+    let toolbar = gtk::Toolbar::new();
+    build_toolbar(&toolbar);
+    v_box.pack_start(&toolbar, false, false, 0);
+    window.add(&v_box);
     build_menu(application);
     window.show_all();
+}
+
+fn build_toolbar(toolbar: &gtk::Toolbar) {
+    let pencil_icon = gtk::Image::new_from_icon_name("face-smile", gtk::IconSize::SmallToolbar.into());
+    let eraser_icon = gtk::Image::new_from_icon_name("face-sad", gtk::IconSize::SmallToolbar.into());
+    let pencil_button = gtk::ToolButton::new(&pencil_icon, "Pencil");
+    let eraser_button = gtk::ToolButton::new(&eraser_icon, "Eraser");
+    toolbar.insert(&pencil_button, 0);
+    toolbar.insert(&eraser_button, 0);
 }
 
 fn build_menu(application: &gtk::Application) {
@@ -85,10 +97,6 @@ fn build_status_bar() {
 }
 
 fn build_pallette() {
-    unimplemented!()
-}
-
-fn build_toolbar() {
     unimplemented!()
 }
 
