@@ -36,6 +36,7 @@ fn build_ui(application: &gtk::Application) {
 }
 
 fn build_toolbar(toolbar: &gtk::Toolbar) {
+    toolbar.set_orientation(Vertical);
     let pencil_icon = gtk::Image::new_from_icon_name("face-smile", gtk::IconSize::SmallToolbar.into());
     let eraser_icon = gtk::Image::new_from_icon_name("face-sad", gtk::IconSize::SmallToolbar.into());
     let pencil_button = gtk::ToolButton::new(&pencil_icon, "Pencil");
