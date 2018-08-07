@@ -1,8 +1,10 @@
 extern crate gtk;
 extern crate gio;
+extern crate cairo;
 
 use gtk::prelude::*;
 use gio::prelude::*;
+use cairo::prelude::*;
 
 use gio::MenuExt;
 
@@ -26,11 +28,26 @@ fn build_ui(application: &gtk::Application) {
     let h_box = gtk::Box::new(Horizontal, 0);
     let v_box = gtk::Box::new(Vertical, 0);
 
-
     let toolbar = gtk::Toolbar::new();
     build_toolbar(&toolbar);
-    v_box.pack_start(&toolbar, false, false, 0);
-    window.add(&v_box);
+    h_box.pack_start(&toolbar, false, false, 0);
+    let canvas = gtk::DrawingArea::new();
+    let surface: cairo::Surface;
+
+    fn clear_surface {
+        
+    }
+
+
+    canvas.set_size_request(400,100);
+    canvas.connect_draw(|_, cr| {
+        cr.scale(100f64,100f64);
+        cr.set_source_rgb(0.5, 0.5, 1.0);
+        cr.paint();
+        Inhibit(false)  // TODO: What does this mean?
+    } );
+    h_box.pack_start(&canvas, false, false, 10);
+    window.add(&h_box);
     build_menu(application);
     window.show_all();
 }
@@ -42,7 +59,7 @@ fn build_toolbar(toolbar: &gtk::Toolbar) {
     let pencil_button = gtk::ToolButton::new(&pencil_icon, "Pencil");
     let eraser_button = gtk::ToolButton::new(&eraser_icon, "Eraser");
     toolbar.insert(&pencil_button, 0);
-    toolbar.insert(&eraser_button, 0);
+    toolbar.insert(&eraser_button, -1);
 }
 
 fn build_menu(application: &gtk::Application) {
@@ -90,15 +107,10 @@ fn build_menu(application: &gtk::Application) {
     menu_bar.append_submenu("Edit", &edit_menu);
 
     application.set_menubar(&menu_bar);
-
 }
 
-fn build_status_bar() {
-    unimplemented!()
-}
+fn activate_application(app: &gtk::Application) {
 
-fn build_pallette() {
-    unimplemented!()
 }
 
 fn main() {
@@ -109,7 +121,7 @@ fn main() {
         build_ui(app)
     });
 
-    application.connect_activate(|_| {});
+    application.connect_activate(activate_application);
     application.run(&args().collect::<Vec<_>>());
 
     gtk::main();
