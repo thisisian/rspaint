@@ -5,7 +5,6 @@ extern crate cairo;
 
 use gtk::prelude::*;
 use gio::prelude::*;
-use cairo::prelude::*;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -39,9 +38,8 @@ fn build_ui(application: &gtk::Application) {
     let canvas = gtk::DrawingArea::new();
     configure_canvas(&canvas);
 
-
-
-    h_box.pack_start(&canvas, false, false, 10);
+    v_box.pack_start(&canvas, false, false, 10);
+    h_box.pack_start(&v_box, false, false, 10);
     window.add(&h_box);
 
     build_menu(application);
@@ -50,7 +48,7 @@ fn build_ui(application: &gtk::Application) {
 
 
 fn configure_canvas(canvas: &gtk::DrawingArea) {
-    canvas.set_size_request(400, 100);
+    canvas.set_size_request(400, 400);
     let surface: Rc<RefCell<Option<cairo::Surface>>> = Rc::new(RefCell::new(None));
     let clear_surface = |surf: &cairo::Surface| {
         let cr = cairo::Context::new(surf);
@@ -128,10 +126,6 @@ fn build_menu(application: &gtk::Application) {
     let file_menu = gio::Menu::new();
     let file_sec1 = gio::Menu::new();
     let file_sec2 = gio::Menu::new();
-
-    let image_menu = gio::Menu::new();
-    let colors_menu = gio::Menu::new();
-    let help_menu = gio::Menu::new();
 
     file_sec1.append("New", "app.new");
     file_sec1.append("Open", "app.open");
