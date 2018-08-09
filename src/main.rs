@@ -35,18 +35,43 @@ fn build_ui(application: &gtk::Application) {
     let toolbar = gtk::Toolbar::new();
     build_toolbar(&toolbar);
     h_box.pack_start(&toolbar, false, false, 0);
+
     let canvas = gtk::DrawingArea::new();
+    configure_canvas(&canvas);
 
-    let mut surface: Rc<RefCell<Option<cairo::Surface>>> = Rc::new(RefCell::new(None));
 
+
+    h_box.pack_start(&canvas, false, false, 10);
+    window.add(&h_box);
+
+    build_menu(application);
+    window.show_all();
+}
+
+
+fn configure_canvas(canvas: &gtk::DrawingArea) {
+    canvas.set_size_request(400, 100);
+    let surface: Rc<RefCell<Option<cairo::Surface>>> = Rc::new(RefCell::new(None));
     let clear_surface = |surf: &cairo::Surface| {
         let cr = cairo::Context::new(surf);
         cr.set_source_rgb(1., 0.5, 0.5);
         cr.paint();
     };
 
-    canvas.set_size_request(400, 100);
+    // When surface is configured
+    let surface_clone = surface.clone();
+    canvas.connect_configure_event(move |canv, _| {
+        surface_clone.replace(Some(gdk::Window::create_similar_surface(&canv.get_window()
+            .expect("Failed to get canvas window"),
+                                                                       cairo::Content::Color,
+                                                                       canv.get_allocated_width(),
+                                                                       canv.get_allocated_height())
+            .expect("Failed to create surface")));
+        clear_surface(surface_clone.borrow().as_ref().unwrap());
+        true
+    });
 
+    // When surface is drawn
     let surface_clone = surface.clone();
     canvas.connect_draw(move |_, cr| {
         cr.set_source_surface(&surface_clone.borrow().as_ref().unwrap(), 0., 0.);
@@ -54,18 +79,7 @@ fn build_ui(application: &gtk::Application) {
         Inhibit(false)
     });
 
-    let surface_clone = surface.clone();
-    canvas.connect_configure_event(move |canv, _| {
-         surface_clone.replace(Some(gdk::Window::create_similar_surface(&canv.get_window()
-                    .expect("Failed to get canvas window"),
-                                                    cairo::Content::Color,
-                                                    canv.get_allocated_width(),
-                                                    canv.get_allocated_height())
-                    .expect("Failed to create surface")));
-        clear_surface(surface_clone.borrow().as_ref().unwrap());
-        true
-    });
-
+    // When mouse is clicked on canvas
     let surface_clone = surface.clone();
     canvas.connect_button_press_event(move |canv, event| {
         let (x, y) = event.get_position();
@@ -73,8 +87,8 @@ fn build_ui(application: &gtk::Application) {
         Inhibit(false)
     });
 
+    // When cursor moves across canvas
     let surface_clone = surface.clone();
-
     canvas.connect_motion_notify_event(move |canv, event| {
         let (x, y) = event.get_position();
         let state = event.get_state();
@@ -84,16 +98,9 @@ fn build_ui(application: &gtk::Application) {
         Inhibit(false)
     });
 
-    canvas.connect_button_release_event()
-
+    // Register the events so that they will work.
     canvas.add_events(gdk::EventMask::BUTTON_PRESS_MASK.bits() as i32|
-                      gdk::EventMask::BUTTON_MOTION_MASK.bits() as i32);
-
-    h_box.pack_start(&canvas, false, false, 10);
-    window.add(&h_box);
-
-    build_menu(application);
-    window.show_all();
+        gdk::EventMask::BUTTON_MOTION_MASK.bits() as i32);
 }
 
 // Draw square on surface and invalidate area on widget
