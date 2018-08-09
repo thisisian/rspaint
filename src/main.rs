@@ -39,9 +39,9 @@ fn build_ui(application: &gtk::Application) {
 
     let mut surface: Rc<RefCell<Option<cairo::Surface>>> = Rc::new(RefCell::new(None));
 
-    let clear_surface = |surf: cairo::Surface| {
-        let cr = cairo::Context::new(&surf);
-        cr.set_source_rgb(1., 1., 1.);
+    let clear_surface = |surf: &cairo::Surface| {
+        let cr = cairo::Context::new(surf);
+        cr.set_source_rgb(1., 0.5, 0.5);
         cr.paint();
     };
 
@@ -62,14 +62,47 @@ fn build_ui(application: &gtk::Application) {
                                                     canv.get_allocated_width(),
                                                     canv.get_allocated_height())
                     .expect("Failed to create surface")));
+        clear_surface(surface_clone.borrow().as_ref().unwrap());
         true
     });
+
+    let surface_clone = surface.clone();
+    canvas.connect_button_press_event(move |canv, event| {
+        let (x, y) = event.get_position();
+        draw_square(canv, surface_clone.borrow().as_ref().unwrap(), x, y);
+        Inhibit(false)
+    });
+
+    let surface_clone = surface.clone();
+
+    canvas.connect_motion_notify_event(move |canv, event| {
+        let (x, y) = event.get_position();
+        let state = event.get_state();
+        if state == gdk::ModifierType::BUTTON1_MASK {
+            draw_square(canv, surface_clone.borrow().as_ref().unwrap(), x, y);
+        }
+        Inhibit(false)
+    });
+
+    canvas.connect_button_release_event()
+
+    canvas.add_events(gdk::EventMask::BUTTON_PRESS_MASK.bits() as i32|
+                      gdk::EventMask::BUTTON_MOTION_MASK.bits() as i32);
 
     h_box.pack_start(&canvas, false, false, 10);
     window.add(&h_box);
 
     build_menu(application);
     window.show_all();
+}
+
+// Draw square on surface and invalidate area on widget
+//
+fn draw_square(drawing_area: &gtk::DrawingArea, surface: &cairo::Surface, x: f64, y: f64) {
+    let cr = cairo::Context::new(surface);
+    cr.rectangle(x-2., y-2., 4_f64, 4_f64);
+    cr.fill();
+    drawing_area.queue_draw_area((x as i32)-2, (y as i32)-2, 4, 4);
 }
 
 fn build_toolbar(toolbar: &gtk::Toolbar) {
