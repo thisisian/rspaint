@@ -1,4 +1,5 @@
 extern crate gtk;
+extern crate gdk;
 extern crate gio;
 extern crate cairo;
 
@@ -6,9 +7,12 @@ use gtk::prelude::*;
 use gio::prelude::*;
 use cairo::prelude::*;
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use gio::MenuExt;
 
-use gtk::{Button, Window, WindowType, ApplicationWindow};
+use gtk::ApplicationWindow;
 use gtk::Orientation::*;
 
 use std::env::args;
@@ -23,7 +27,7 @@ fn build_ui(application: &gtk::Application) {
     });
 
     window.set_title("RSPaint");
-    window.set_default_size(500,500);
+    window.set_default_size(500, 500);
 
     let h_box = gtk::Box::new(Horizontal, 0);
     let v_box = gtk::Box::new(Vertical, 0);
@@ -32,22 +36,38 @@ fn build_ui(application: &gtk::Application) {
     build_toolbar(&toolbar);
     h_box.pack_start(&toolbar, false, false, 0);
     let canvas = gtk::DrawingArea::new();
-    let surface: cairo::Surface;
 
-    fn clear_surface {
-        
-    }
+    let mut surface: Rc<RefCell<Option<cairo::Surface>>> = Rc::new(RefCell::new(None));
 
-
-    canvas.set_size_request(400,100);
-    canvas.connect_draw(|_, cr| {
-        cr.scale(100f64,100f64);
-        cr.set_source_rgb(0.5, 0.5, 1.0);
+    let clear_surface = |surf: cairo::Surface| {
+        let cr = cairo::Context::new(&surf);
+        cr.set_source_rgb(1., 1., 1.);
         cr.paint();
-        Inhibit(false)  // TODO: What does this mean?
-    } );
+    };
+
+    canvas.set_size_request(400, 100);
+
+    let surface_clone = surface.clone();
+    canvas.connect_draw(move |_, cr| {
+        cr.set_source_surface(&surface_clone.borrow().as_ref().unwrap(), 0., 0.);
+        cr.paint();
+        Inhibit(false)
+    });
+
+    let surface_clone = surface.clone();
+    canvas.connect_configure_event(move |canv, _| {
+         surface_clone.replace(Some(gdk::Window::create_similar_surface(&canv.get_window()
+                    .expect("Failed to get canvas window"),
+                                                    cairo::Content::Color,
+                                                    canv.get_allocated_width(),
+                                                    canv.get_allocated_height())
+                    .expect("Failed to create surface")));
+        true
+    });
+
     h_box.pack_start(&canvas, false, false, 10);
     window.add(&h_box);
+
     build_menu(application);
     window.show_all();
 }
@@ -109,10 +129,6 @@ fn build_menu(application: &gtk::Application) {
     application.set_menubar(&menu_bar);
 }
 
-fn activate_application(app: &gtk::Application) {
-
-}
-
 fn main() {
     let application = gtk::Application::new("org.github.thisisian.rspaint",
                                             gio::ApplicationFlags::empty()).expect("Initialization Failed...");
@@ -121,7 +137,7 @@ fn main() {
         build_ui(app)
     });
 
-    application.connect_activate(activate_application);
+    application.connect_activate(|_| {});
     application.run(&args().collect::<Vec<_>>());
 
     gtk::main();
