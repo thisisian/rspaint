@@ -52,6 +52,7 @@ fn configure_canvas(canvas: &gtk::DrawingArea) {
     let surface: Rc<RefCell<Option<cairo::Surface>>> = Rc::new(RefCell::new(None));
     let clear_surface = |surf: &cairo::Surface| {
         let cr = cairo::Context::new(surf);
+        cr.set_antialias(cairo::Antialias::None);
         cr.set_source_rgb(1., 0.5, 0.5);
         cr.paint();
     };
@@ -77,22 +78,40 @@ fn configure_canvas(canvas: &gtk::DrawingArea) {
         Inhibit(false)
     });
 
+    let last_position : Rc<RefCell<Option<(f64, f64)>>> = Rc::new(RefCell::new(None));
     // When mouse is clicked on canvas
     let surface_clone = surface.clone();
+    let last_position_clone = last_position.clone();
     canvas.connect_button_press_event(move |canv, event| {
         let (x, y) = event.get_position();
         draw_square(canv, surface_clone.borrow().as_ref().unwrap(), x, y);
+        last_position_clone.replace(Some((x, y)));
         Inhibit(false)
     });
 
     // When cursor moves across canvas
     let surface_clone = surface.clone();
+    let last_position_clone = last_position.clone();
     canvas.connect_motion_notify_event(move |canv, event| {
         let (x, y) = event.get_position();
         let state = event.get_state();
+        let last_position_exists = last_position_clone.borrow().as_ref().is_some();
         if state == gdk::ModifierType::BUTTON1_MASK {
-            draw_square(canv, surface_clone.borrow().as_ref().unwrap(), x, y);
+            if last_position_exists == true {
+                let last_x  = last_position_clone.borrow().as_ref().unwrap().0;
+                let last_y  = last_position_clone.borrow().as_ref().unwrap().1;
+                let cr = cairo::Context::new(&surface_clone.borrow().as_ref().unwrap());
+                cr.move_to(last_x, last_y);
+                cr.line_to(x, y);
+                cr.set_line_width(1.0);
+                cr.stroke();
+                canv.queue_draw(); // TODO: More efficient??
+            } else {
+                draw_square(canv, surface_clone.borrow().as_ref().unwrap(), x, y);
+                last_position_clone.replace(Some((x,y)));
+            }
         }
+        last_position.replace(Some((x, y)));
         Inhibit(false)
     });
 
