@@ -17,8 +17,13 @@ use gtk::Orientation::*;
 use std::env::args;
 use std::option::Option::*;
 
+pub mod enums;
+use enums::*;
+
 fn build_ui(application: &gtk::Application) {
     let window = ApplicationWindow::new(application);
+
+    let tool_state: Rc<RefCell<Option<Tool>>> = Rc::new(RefCell::new(None));
 
     window.connect_delete_event(|_, _| {
         gtk::main_quit();
@@ -31,9 +36,9 @@ fn build_ui(application: &gtk::Application) {
     let h_box = gtk::Box::new(Horizontal, 0);
     let v_box = gtk::Box::new(Vertical, 0);
 
-    let toolbar = gtk::Toolbar::new();
-    build_toolbar(&toolbar);
-    h_box.pack_start(&toolbar, false, false, 0);
+    let tool_box = gtk::Box::new(Vertical, 0);
+    build_tool_box(&tool_box, tool_state.clone());
+    h_box.pack_start(&tool_box, false, false, 0);
 
     let canvas = gtk::DrawingArea::new();
     configure_canvas(&canvas);
@@ -45,7 +50,6 @@ fn build_ui(application: &gtk::Application) {
     build_menu(application);
     window.show_all();
 }
-
 
 fn configure_canvas(canvas: &gtk::DrawingArea) {
     canvas.set_size_request(400, 400);
@@ -67,6 +71,7 @@ fn configure_canvas(canvas: &gtk::DrawingArea) {
                                                                        canv.get_allocated_height())
             .expect("Failed to create surface")));
         clear_surface(surface_clone.borrow().as_ref().unwrap());
+        surface_clone.borrow().as_ref().unwrap();
         true
     });
 
@@ -101,6 +106,7 @@ fn configure_canvas(canvas: &gtk::DrawingArea) {
                 let last_x  = last_position_clone.borrow().as_ref().unwrap().0;
                 let last_y  = last_position_clone.borrow().as_ref().unwrap().1;
                 let cr = cairo::Context::new(&surface_clone.borrow().as_ref().unwrap());
+                cr.set_antialias(cairo::Antialias::None);
                 cr.move_to(last_x, last_y);
                 cr.line_to(x, y);
                 cr.set_line_width(1.0);
@@ -124,19 +130,25 @@ fn configure_canvas(canvas: &gtk::DrawingArea) {
 //
 fn draw_square(drawing_area: &gtk::DrawingArea, surface: &cairo::Surface, x: f64, y: f64) {
     let cr = cairo::Context::new(surface);
-    cr.rectangle(x-2., y-2., 4_f64, 4_f64);
+    cr.set_antialias(cairo::Antialias::None);
+    cr.rectangle(x, y, 1_f64, 1_f64);
     cr.fill();
-    drawing_area.queue_draw_area((x as i32)-2, (y as i32)-2, 4, 4);
+    // Redraw area larger than rectangle due to floating point rounding
+    drawing_area.queue_draw_area((x as i32) - 2, (y as i32) -2 , 4, 4);
 }
 
-fn build_toolbar(toolbar: &gtk::Toolbar) {
-    toolbar.set_orientation(Vertical);
+fn build_tool_box(tool_box: &gtk::Box,
+                  tool_state: Rc<RefCell<Option<Tool>>>) {
+    let pencil_button = gtk::ToggleButton::new();
+    let eraser_button = gtk::ToggleButton::new();
+
     let pencil_icon = gtk::Image::new_from_icon_name("face-smile", gtk::IconSize::SmallToolbar.into());
     let eraser_icon = gtk::Image::new_from_icon_name("face-sad", gtk::IconSize::SmallToolbar.into());
-    let pencil_button = gtk::ToolButton::new(&pencil_icon, "Pencil");
-    let eraser_button = gtk::ToolButton::new(&eraser_icon, "Eraser");
-    toolbar.insert(&pencil_button, 0);
-    toolbar.insert(&eraser_button, -1);
+    pencil_button.set_image(&pencil_icon);
+    eraser_button.set_image(&eraser_icon);
+
+    tool_box.pack_start(&pencil_button, false, false, 0);
+    tool_box.pack_start(&eraser_button, false, false, 0);
 }
 
 fn build_menu(application: &gtk::Application) {
