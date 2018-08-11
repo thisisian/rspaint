@@ -72,6 +72,8 @@ fn build_ui(application: &gtk::Application) {
 fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Tool>>>) {
     canvas.set_size_request(400, 400);
     let surface: Rc<RefCell<Option<cairo::Surface>>> = Rc::new(RefCell::new(None));
+    let context: Rc<RefCell<Option<cairo::Context>>> = Rc::new(RefCell::new(None));
+
     let clear_surface = |surf: &cairo::Surface| {
         let cr = cairo::Context::new(surf);
         cr.set_antialias(cairo::Antialias::None);
@@ -80,6 +82,7 @@ fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Too
     };
 
     // When surface is configured
+    let context_clone = context.clone();
     let surface_clone = surface.clone();
     canvas.connect_configure_event(move |canv, _| {
         surface_clone.replace(Some(gdk::Window::create_similar_surface(&canv.get_window()
@@ -90,11 +93,14 @@ fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Too
             .expect("Failed to create surface")));
         clear_surface(surface_clone.borrow().as_ref().unwrap());
         surface_clone.borrow().as_ref().unwrap();
+        context_clone.replace(Some(cairo::Context::new(&surface_clone.borrow().as_ref().unwrap())));
+        context_clone.borrow().as_ref().unwrap().set_antialias(cairo::Antialias::None);
         true
     });
 
     // When surface is drawn
     let surface_clone = surface.clone();
+    let context_clone = context.clone();
     canvas.connect_draw(move |_, cr| {
         cr.set_source_surface(&surface_clone.borrow().as_ref().unwrap(), 0., 0.);
         cr.paint();
@@ -103,23 +109,30 @@ fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Too
 
     let last_position : Rc<RefCell<Option<(f64, f64)>>> = Rc::new(RefCell::new(None));
     // When mouse is clicked on canvas
+    let context_clone = context.clone();
     let surface_clone = surface.clone();
     let last_position_clone = last_position.clone();
     let tool_state_clone = tool_state.clone();
     canvas.connect_button_press_event(move |canv, event| {
         let (x, y) = event.get_position();
-        draw_square(canv, surface_clone.borrow().as_ref().unwrap(), x, y);
-        last_position_clone.replace(Some((x, y)));
+        match tool_state_clone.borrow().as_ref() {
+            Some(Tool::Pencil) => {
+                draw_square(canv, context_clone.borrow().as_ref().unwrap(), x, y);
+                last_position_clone.replace(Some((x, y)));
+            },
+            _ => {},
+        }
         Inhibit(false)
     });
 
     // TODO: Reset last position when button is released
 
     // When cursor moves across canvas
+    let context_clone = context.clone();
     let surface_clone = surface.clone();
     let last_position_clone = last_position.clone();
     let tool_state_clone = tool_state.clone();
-    canvas.connect_motion_notify_event(move |canv, event| {
+    canvas.connect_motion_notify_event(move |da, event| {
         let (x, y) = event.get_position();
         let state = event.get_state();
         let cur_tool = tool_state_clone.borrow().clone();
@@ -130,15 +143,9 @@ fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Too
                     if last_position_exists == true {
                         let last_x = last_position_clone.borrow().as_ref().unwrap().0;
                         let last_y = last_position_clone.borrow().as_ref().unwrap().1;
-                        let cr = cairo::Context::new(&surface_clone.borrow().as_ref().unwrap());
-                        cr.set_antialias(cairo::Antialias::None);
-                        cr.move_to(last_x, last_y);
-                        cr.line_to(x, y);
-                        cr.set_line_width(1.0);
-                        cr.stroke();
-                        canv.queue_draw(); // TODO: How to make more efficient??
+                        draw_line(da, context.borrow().as_ref().unwrap(), last_x, last_y, x, y);
                     } else {
-                        draw_square(canv, surface_clone.borrow().as_ref().unwrap(), x, y);
+                        draw_square(da, context.borrow().as_ref().unwrap(), x, y);
                         last_position_clone.replace(Some((x, y)));
                     }
                 }
@@ -150,20 +157,26 @@ fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Too
     Inhibit(false)
     });
 
-    // Register the events so that they will work.
+    // Register the events.
     canvas.add_events(gdk::EventMask::BUTTON_PRESS_MASK.bits() as i32|
-        gdk::EventMask::BUTTON_MOTION_MASK.bits() as i32);
+                      gdk::EventMask::BUTTON_MOTION_MASK.bits() as i32);
 }
 
-// Draw square on surface and invalidate area on widget
-//
-fn draw_square(drawing_area: &gtk::DrawingArea, surface: &cairo::Surface, x: f64, y: f64) {
-    let cr = cairo::Context::new(surface);
-    cr.set_antialias(cairo::Antialias::None);
+// Draw line on surface from x1, y1 to x2, y2.
+fn draw_line(da: &gtk::DrawingArea, cr: &cairo::Context, x1: f64, y1: f64, x2: f64, y2: f64) {
+    cr.move_to(x1, y1);
+    cr.line_to(x2, y2);
+    cr.set_line_width(1.0);
+    cr.stroke();
+    da.queue_draw();
+}
+
+
+fn draw_square(da: &gtk::DrawingArea, cr: &cairo::Context, x: f64, y: f64) {
     cr.rectangle(x, y, 1_f64, 1_f64);
     cr.fill();
     // Redraw area larger than rectangle due to floating point rounding
-    drawing_area.queue_draw_area((x as i32) - 2, (y as i32) -2 , 4, 4);
+    da.queue_draw_area((x as i32) - 2, (y as i32) -2 , 4, 4);
 }
 
 fn build_tool_box(tool_box: &gtk::Box,
@@ -195,7 +208,7 @@ fn build_tool_box(tool_box: &gtk::Box,
         }
     });
 
-    tool_box.pack_start(&pencil_button, false, false, 0);
+    tool_box.pack_start(&pencil_button, false, false, 10);
     tool_box.pack_start(&eraser_button, false, false, 0);
 }
 
