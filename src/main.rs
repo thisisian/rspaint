@@ -16,6 +16,8 @@ use gtk::Orientation::*;
 
 use std::env::args;
 use std::option::Option::*;
+use std::f64::consts::SQRT_2;
+use std::f64::consts::PI;
 
 pub mod enums;
 use enums::*;
@@ -117,7 +119,7 @@ fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Too
         let (x, y) = event.get_position();
         match tool_state_clone.borrow().as_ref() {
             Some(Tool::Pencil) => {
-                draw_square(canv, context_clone.borrow().as_ref().unwrap(), x, y);
+                draw_dot(canv, context_clone.borrow().as_ref().unwrap(), x, y, 10.0);
                 last_position_clone.replace(Some((x, y)));
             },
             _ => {},
@@ -143,9 +145,9 @@ fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Too
                     if last_position_exists == true {
                         let last_x = last_position_clone.borrow().as_ref().unwrap().0;
                         let last_y = last_position_clone.borrow().as_ref().unwrap().1;
-                        draw_line(da, context.borrow().as_ref().unwrap(), last_x, last_y, x, y);
+                        draw_line(da, context.borrow().as_ref().unwrap(), last_x, last_y, x, y, 10.0);
                     } else {
-                        draw_square(da, context.borrow().as_ref().unwrap(), x, y);
+                        draw_dot(da, context.borrow().as_ref().unwrap(), x, y, 10.0);
                         last_position_clone.replace(Some((x, y)));
                     }
                 }
@@ -163,20 +165,27 @@ fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Too
 }
 
 // Draw line on surface from x1, y1 to x2, y2.
-fn draw_line(da: &gtk::DrawingArea, cr: &cairo::Context, x1: f64, y1: f64, x2: f64, y2: f64) {
+fn draw_line(da: &gtk::DrawingArea, cr: &cairo::Context, x1: f64, y1: f64, x2: f64, y2: f64, width: f64) {
     cr.move_to(x1, y1);
     cr.line_to(x2, y2);
-    cr.set_line_width(1.0);
+    cr.set_line_cap(cairo::LineCap::Round);
+    cr.set_line_width(width);
     cr.stroke();
     da.queue_draw();
 }
 
 
-fn draw_square(da: &gtk::DrawingArea, cr: &cairo::Context, x: f64, y: f64) {
-    cr.rectangle(x, y, 1_f64, 1_f64);
+fn draw_dot(da: &gtk::DrawingArea, cr: &cairo::Context, x: f64, y: f64, diameter: f64) {
+    cr.arc(x, y, diameter/2., 0_f64, 2.*PI);
     cr.fill();
     // Redraw area larger than rectangle due to floating point rounding
-    da.queue_draw_area((x as i32) - 2, (y as i32) -2 , 4, 4);
+    let redraw_x = (x - diameter / 2.).floor() as i32;
+    let redraw_y = (y - diameter / 2.).floor() as i32;
+    let redraw_sz = (diameter * SQRT_2).ceil() as i32;
+    da.queue_draw_area(redraw_x,
+                       redraw_y,
+                       redraw_sz,
+                       redraw_sz);
 }
 
 fn build_tool_box(tool_box: &gtk::Box,
