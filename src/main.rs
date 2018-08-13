@@ -3,17 +3,19 @@ extern crate gdk;
 extern crate gio;
 extern crate cairo;
 
-use gtk::prelude::*;
+#[macro_use]
+extern crate lazy_static;
+
 use gio::prelude::*;
-
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use gio::MenuExt;
 
+use gtk::prelude::*;
 use gtk::ApplicationWindow;
 use gtk::Orientation::*;
 
+use std::cell::RefCell;
+use std::sync::Mutex;
+use std::rc::Rc;
 use std::env::args;
 use std::option::Option::*;
 use std::f64::consts::SQRT_2;
@@ -40,10 +42,12 @@ macro_rules! clone {
     );
 }
 
+lazy_static! {
+    static ref CURRENT_TOOL: Mutex<Option<Tool>> = Mutex::new(None);
+}
+
 fn build_ui(application: &gtk::Application) {
     let window = ApplicationWindow::new(application);
-
-    let tool_state: Rc<RefCell<Option<Tool>>> = Rc::new(RefCell::new(None));
 
     window.connect_delete_event(|_, _| {
         gtk::main_quit();
@@ -57,11 +61,11 @@ fn build_ui(application: &gtk::Application) {
     let v_box = gtk::Box::new(Vertical, 0);
 
     let tool_box = gtk::Box::new(Vertical, 0);
-    build_tool_box(&tool_box, tool_state.clone());
+    build_tool_box(&tool_box);
     h_box.pack_start(&tool_box, false, false, 0);
 
     let canvas = gtk::DrawingArea::new();
-    configure_canvas(&canvas, tool_state.clone());
+    configure_canvas(&canvas);
 
     v_box.pack_start(&canvas, false, false, 10);
     h_box.pack_start(&v_box, false, false, 10);
@@ -71,7 +75,7 @@ fn build_ui(application: &gtk::Application) {
     window.show_all();
 }
 
-fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Tool>>>) {
+fn configure_canvas(canvas: &gtk::DrawingArea) {
     canvas.set_size_request(400, 400);
     let surface: Rc<RefCell<Option<cairo::Surface>>> = Rc::new(RefCell::new(None));
     let context: Rc<RefCell<Option<cairo::Context>>> = Rc::new(RefCell::new(None));
@@ -114,10 +118,9 @@ fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Too
     let context_clone = context.clone();
     let surface_clone = surface.clone();
     let last_position_clone = last_position.clone();
-    let tool_state_clone = tool_state.clone();
     canvas.connect_button_press_event(move |canv, event| {
         let (x, y) = event.get_position();
-        match tool_state_clone.borrow().as_ref() {
+        match *CURRENT_TOOL.lock().unwrap() {
             Some(Tool::Pencil) => {
                 draw_dot(canv, context_clone.borrow().as_ref().unwrap(), x, y, 10.0);
                 last_position_clone.replace(Some((x, y)));
@@ -133,11 +136,10 @@ fn configure_canvas(canvas: &gtk::DrawingArea, tool_state: Rc<RefCell<Option<Too
     let context_clone = context.clone();
     let surface_clone = surface.clone();
     let last_position_clone = last_position.clone();
-    let tool_state_clone = tool_state.clone();
     canvas.connect_motion_notify_event(move |da, event| {
         let (x, y) = event.get_position();
         let state = event.get_state();
-        let cur_tool = tool_state_clone.borrow().clone();
+        let cur_tool = *CURRENT_TOOL.lock().unwrap();
         let last_position_exists = last_position_clone.borrow().as_ref().is_some();
         if state == gdk::ModifierType::BUTTON1_MASK {
             match cur_tool {
@@ -188,8 +190,7 @@ fn draw_dot(da: &gtk::DrawingArea, cr: &cairo::Context, x: f64, y: f64, diameter
                        redraw_sz);
 }
 
-fn build_tool_box(tool_box: &gtk::Box,
-                  tool_state: Rc<RefCell<Option<Tool>>>) {
+fn build_tool_box(tool_box: &gtk::Box) {
     let pencil_button = gtk::ToggleButton::new();
     let eraser_button = gtk::ToggleButton::new();
 
@@ -201,19 +202,17 @@ fn build_tool_box(tool_box: &gtk::Box,
     eraser_button.set_label("Eraser");
 
     let eraser_button_clone = eraser_button.clone();
-    let pencil_button_clone = pencil_button.clone();
-    let tool_state_clone = tool_state.clone();
-    eraser_button.connect_toggled(move |this| {
-        if this.get_active() == true {
-            tool_state_clone.replace(Some(Tool::Eraser));
-            pencil_button_clone.set_active(false);
-        }
-    });
-    let tool_state_clone = tool_state.clone();
     pencil_button.connect_toggled(move |this| {
         if this.get_active() == true {
-            tool_state_clone.replace(Some(Tool::Pencil));
+            *CURRENT_TOOL.lock().unwrap() = Some(Tool::Pencil);
             eraser_button_clone.set_active(false);
+        }
+    });
+    let pencil_button_clone = pencil_button.clone();
+    eraser_button.connect_toggled(move |this| {
+        if this.get_active() == true {
+            *CURRENT_TOOL.lock().unwrap() = Some(Tool::Eraser);
+            pencil_button_clone.set_active(false);
         }
     });
 
