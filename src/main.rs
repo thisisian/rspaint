@@ -3,9 +3,6 @@ extern crate gdk;
 extern crate gio;
 extern crate cairo;
 
-#[macro_use]
-extern crate lazy_static;
-
 use gio::prelude::*;
 use gio::MenuExt;
 
@@ -14,7 +11,6 @@ use gtk::ApplicationWindow;
 use gtk::Orientation::*;
 
 use std::cell::RefCell;
-use std::sync::Mutex;
 use std::rc::Rc;
 use std::env::args;
 use std::option::Option::*;
@@ -24,70 +20,75 @@ use std::f64::consts::PI;
 pub mod enums;
 use enums::*;
 
-// Make cloning simpler for closures (from http://gtk-rs.org/tuto/closures)
-macro_rules! clone {
-    (@param _) => ( _ );
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ => move || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move || $body
-        }
-    );
-    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move |$(clone!(@param $p),)+| $body
-        }
-    );
+struct Canvas {
+    surface: Option<cairo::Surface>,
+    context: Option<cairo::Context>,
+    drawing_area: Option<gtk::DrawingArea>,
 }
 
-lazy_static! {
-    static ref CURRENT_TOOL: Mutex<Option<Tool>> = Mutex::new(None);
+struct State {
+    tool: Option<Tool>,
+    fg_color: (f64, f64, f64),
+    bg_color: (f64, f64, f64),
+}
+
+impl State {
+    fn get_fg_cairo_pattern(&self) -> cairo::SolidPattern {
+       cairo::SolidPattern::from_rgb(self.fg_color.0, self.fg_color.1, self.fg_color.2)
+    }
+    fn get_bg_cairo_pattern(&self) -> cairo::SolidPattern {
+        cairo::SolidPattern::from_rgb(self.bg_color.0, self.bg_color.1, self.bg_color.2)
+    }
 }
 
 fn build_ui(application: &gtk::Application) {
     let window = ApplicationWindow::new(application);
+    let state: Rc<RefCell<State>> = Rc::new(RefCell::new(State {
+        tool: None,
+        fg_color: (0., 0., 0.),
+        bg_color: (1., 1., 1.),
+    }));
 
+    window.set_title("RSPaint");
+    window.set_default_size(500, 500); // TODO: Set to screen resolution?
     window.connect_delete_event(|_, _| {
         gtk::main_quit();
         Inhibit(false)
     });
 
-    window.set_title("RSPaint");
-    window.set_default_size(500, 500);
-
     let h_box = gtk::Box::new(Horizontal, 0);
-    let v_box = gtk::Box::new(Vertical, 0);
 
     let tool_box = gtk::Box::new(Vertical, 0);
-    build_tool_box(&tool_box);
-    h_box.pack_start(&tool_box, false, false, 0);
+    build_tool_box(&tool_box, state.clone());
 
+    let canvas_box = gtk::Box::new(Vertical, 0);
     let canvas = gtk::DrawingArea::new();
-    configure_canvas(&canvas);
+    configure_canvas(&canvas, state.clone());
+    canvas_box.pack_start(&canvas, false, false, 10);
 
-    v_box.pack_start(&canvas, false, false, 10);
-    h_box.pack_start(&v_box, false, false, 10);
+    h_box.pack_start(&tool_box, false, false, 0);
+    h_box.pack_start(&canvas_box, false, false, 10);
     window.add(&h_box);
 
     build_menu(application);
     window.show_all();
 }
 
-fn configure_canvas(canvas: &gtk::DrawingArea) {
+fn configure_canvas(canvas: &gtk::DrawingArea, state: Rc<RefCell<State>>) {
     canvas.set_size_request(400, 400);
     let surface: Rc<RefCell<Option<cairo::Surface>>> = Rc::new(RefCell::new(None));
     let context: Rc<RefCell<Option<cairo::Context>>> = Rc::new(RefCell::new(None));
 
-    let clear_surface = |surf: &cairo::Surface| {
+    let state_clone = state.clone();
+    let clear_surface = move |surf: &cairo::Surface| {
         let cr = cairo::Context::new(surf);
         cr.set_antialias(cairo::Antialias::None);
-        cr.set_source_rgb(1., 0.5, 0.5);
+        let ptn = &state_clone.borrow().get_bg_cairo_pattern();
+        cr.set_source(ptn);
         cr.paint();
     };
 
-    // When surface is configured
+    // Runs when drawing area is configured
     let context_clone = context.clone();
     let surface_clone = surface.clone();
     canvas.connect_configure_event(move |canv, _| {
@@ -115,14 +116,17 @@ fn configure_canvas(canvas: &gtk::DrawingArea) {
 
     let last_position : Rc<RefCell<Option<(f64, f64)>>> = Rc::new(RefCell::new(None));
     // When mouse is clicked on canvas
+    let state_clone = state.clone();
     let context_clone = context.clone();
     let surface_clone = surface.clone();
     let last_position_clone = last_position.clone();
     canvas.connect_button_press_event(move |canv, event| {
         let (x, y) = event.get_position();
-        match *CURRENT_TOOL.lock().unwrap() {
+        let tool = state_clone.borrow().tool;
+        let ptn = &state_clone.borrow().get_fg_cairo_pattern();
+        match tool {
             Some(Tool::Pencil) => {
-                draw_dot(canv, context_clone.borrow().as_ref().unwrap(), x, y, 10.0);
+                draw_dot(canv, context_clone.borrow().as_ref().unwrap(), ptn, x, y, 10.0);
                 last_position_clone.replace(Some((x, y)));
             },
             _ => {},
@@ -134,22 +138,24 @@ fn configure_canvas(canvas: &gtk::DrawingArea) {
 
     // When cursor moves across canvas
     let context_clone = context.clone();
+    let state_clone = state.clone();
     let surface_clone = surface.clone();
     let last_position_clone = last_position.clone();
     canvas.connect_motion_notify_event(move |da, event| {
         let (x, y) = event.get_position();
-        let state = event.get_state();
-        let cur_tool = *CURRENT_TOOL.lock().unwrap();
+        let button_state = event.get_state();
+        let tool = state_clone.borrow().tool;
         let last_position_exists = last_position_clone.borrow().as_ref().is_some();
-        if state == gdk::ModifierType::BUTTON1_MASK {
-            match cur_tool {
+        if button_state == gdk::ModifierType::BUTTON1_MASK {
+            match tool {
                 Some(Tool::Pencil) => {
+                    let ptn = &state_clone.borrow().get_fg_cairo_pattern();
                     if last_position_exists == true {
                         let last_x = last_position_clone.borrow().as_ref().unwrap().0;
                         let last_y = last_position_clone.borrow().as_ref().unwrap().1;
-                        draw_line(da, context.borrow().as_ref().unwrap(), last_x, last_y, x, y, 10.0);
+                        draw_line(da, context.borrow().as_ref().unwrap(), ptn, last_x, last_y, x, y, 10.0);
                     } else {
-                        draw_dot(da, context.borrow().as_ref().unwrap(), x, y, 10.0);
+                        draw_dot(da, context.borrow().as_ref().unwrap(), ptn, x, y, 10.0);
                         last_position_clone.replace(Some((x, y)));
                     }
                 }
@@ -167,30 +173,37 @@ fn configure_canvas(canvas: &gtk::DrawingArea) {
 }
 
 // Draw line on surface from x1, y1 to x2, y2.
-fn draw_line(da: &gtk::DrawingArea, cr: &cairo::Context, x1: f64, y1: f64, x2: f64, y2: f64, width: f64) {
+fn draw_line(da: &gtk::DrawingArea,
+             cr: &cairo::Context,
+             ptn: &cairo::SolidPattern,
+             x1: f64, y1: f64, x2: f64, y2: f64, width: f64) {
     cr.move_to(x1, y1);
     cr.line_to(x2, y2);
     cr.set_line_cap(cairo::LineCap::Round);
+    cr.set_source(ptn);
     cr.set_line_width(width);
     cr.stroke();
     da.queue_draw();
 }
 
 
-fn draw_dot(da: &gtk::DrawingArea, cr: &cairo::Context, x: f64, y: f64, diameter: f64) {
+fn draw_dot(da: &gtk::DrawingArea,
+            cr: &cairo::Context,
+            ptn: &cairo::SolidPattern, x: f64, y: f64, diameter: f64) {
     cr.arc(x, y, diameter/2., 0_f64, 2.*PI);
+    cr.set_source(ptn);
     cr.fill();
     // Redraw area larger than rectangle due to floating point rounding
-    let redraw_x = (x - diameter / 2.).floor() as i32;
-    let redraw_y = (y - diameter / 2.).floor() as i32;
     let redraw_sz = (diameter * SQRT_2).ceil() as i32;
+    let redraw_x = (x - redraw_sz as f64 / 2.).floor() as i32;
+    let redraw_y = (y - redraw_sz as f64 / 2.).floor() as i32;
     da.queue_draw_area(redraw_x,
                        redraw_y,
                        redraw_sz,
                        redraw_sz);
 }
 
-fn build_tool_box(tool_box: &gtk::Box) {
+fn build_tool_box(tool_box: &gtk::Box, state: Rc<RefCell<State>>) {
     let pencil_button = gtk::ToggleButton::new();
     let eraser_button = gtk::ToggleButton::new();
 
@@ -201,18 +214,22 @@ fn build_tool_box(tool_box: &gtk::Box) {
     pencil_button.set_label("Pencil");
     eraser_button.set_label("Eraser");
 
-    let eraser_button_clone = eraser_button.clone();
+    let pencil_button_clone = pencil_button.clone();
+    let state_clone = state.clone();
     pencil_button.connect_toggled(move |this| {
         if this.get_active() == true {
-            *CURRENT_TOOL.lock().unwrap() = Some(Tool::Pencil);
-            eraser_button_clone.set_active(false);
+            let mut new_state = state_clone.borrow_mut();
+            new_state.tool = Some(Tool::Pencil);
+            pencil_button_clone.set_active(false);
         }
     });
-    let pencil_button_clone = pencil_button.clone();
+    let eraser_button_clone = eraser_button.clone();
+    let state_clone = state.clone();
     eraser_button.connect_toggled(move |this| {
         if this.get_active() == true {
-            *CURRENT_TOOL.lock().unwrap() = Some(Tool::Eraser);
-            pencil_button_clone.set_active(false);
+            let mut new_state = state_clone.borrow_mut();
+            new_state.tool = Some(Tool::Eraser);
+            eraser_button_clone.set_active(false);
         }
     });
 
