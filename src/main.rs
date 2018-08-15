@@ -25,28 +25,35 @@ use tools::*;
 pub mod canvas;
 use canvas::*;
 
-
 struct GlobalState {
-    tool: Option<Tool>,
-    fg_color: (f64, f64, f64),
-    bg_color: (f64, f64, f64),
+    tool: Option<ToolEnum>,
 }
 
-impl GlobalState {
+struct GlobalColors {
+    fg_color: RGBColor,
+    bg_color: RGBColor,
+}
+
+impl GlobalColors {
     fn get_fg_cairo_pattern(&self) -> cairo::SolidPattern {
-       cairo::SolidPattern::from_rgb(self.fg_color.0, self.fg_color.1, self.fg_color.2)
+        cairo::SolidPattern::from_rgb(self.fg_color.0, self.fg_color.1, self.fg_color.2)
     }
     fn get_bg_cairo_pattern(&self) -> cairo::SolidPattern {
         cairo::SolidPattern::from_rgb(self.bg_color.0, self.bg_color.1, self.bg_color.2)
     }
 }
 
+
+struct RGBColor(f64, f64, f64);
+
 fn build_ui(application: &gtk::Application) {
     let window = ApplicationWindow::new(application);
+    let global_colors = Rc::new(RefCell::new(GlobalColors{
+        fg_color: RGBColor(0.,0.,0.),
+        bg_color: RGBColor(1.,1.,1.)
+    }));
     let global_state: Rc<RefCell<GlobalState>> = Rc::new(RefCell::new(GlobalState {
         tool: None,
-        fg_color: (0., 0., 0.),
-        bg_color: (1., 1., 1.),
     }));
 
     let mut canvas: Rc<RefCell<Canvas>> = Rc::new(RefCell::new(Canvas::new()));
@@ -64,7 +71,7 @@ fn build_ui(application: &gtk::Application) {
     build_tool_box(&tool_box, global_state.clone());
 
     let canvas_box = gtk::Box::new(Vertical, 0);
-    configure_canvas(canvas.clone(), global_state.clone());
+    configure_canvas(canvas.clone(), global_state.clone(), global_colors.clone());
     canvas_box.pack_start(&canvas.borrow().get_drawing_area(), false, false, 10);
 
     h_box.pack_start(&tool_box, false, false, 0);
@@ -76,17 +83,17 @@ fn build_ui(application: &gtk::Application) {
 }
 
 fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
-                    global_state: Rc<RefCell<GlobalState>>) {
+                    global_state: Rc<RefCell<GlobalState>>,
+                    global_colors: Rc<RefCell<GlobalColors>>) {
 
     let drawing_area = canvas.borrow().get_drawing_area();
     drawing_area.set_size_request(400, 400);
-
-
     let state_clone = global_state.clone();
+    let global_colors_clone = global_colors.clone();
     let clear_surface = move |surf: &cairo::Surface| {
         let cr = cairo::Context::new(surf);
         cr.set_antialias(cairo::Antialias::None);
-        let ptn = &state_clone.borrow().get_bg_cairo_pattern();
+        let ptn = &global_colors_clone.borrow().get_bg_cairo_pattern();
         cr.set_source(ptn);
         cr.paint();
     };
@@ -119,6 +126,7 @@ fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
     let last_position : Rc<RefCell<Option<(f64, f64)>>> = Rc::new(RefCell::new(None));
     // When mouse is clicked on canvas
     let state_clone = global_state.clone();
+    let global_colors_clone = global_colors.clone();
     let canvas_clone = canvas.clone();
     let last_position_clone = last_position.clone();
     drawing_area.connect_button_press_event(move |canv, event| {
@@ -127,13 +135,13 @@ fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
         let (x, y) = event.get_position();
         let tool = state_clone.borrow().tool;
         match tool {
-            Some(Tool::Pencil) => {
-                let ptn = &state_clone.borrow().get_fg_cairo_pattern();
+            Some(ToolEnum::Pencil) => {
+                let ptn = &global_colors_clone.borrow().get_fg_cairo_pattern();
                 draw_dot(canv, &context, ptn, x, y, 10.0);
                 last_position_clone.replace(Some((x, y)));
             },
-            Some(Tool::Eraser) => {
-                let ptn = &state_clone.borrow().get_bg_cairo_pattern();
+            Some(ToolEnum::Eraser) => {
+                let ptn = &global_colors_clone.borrow().get_bg_cairo_pattern();
                 draw_dot(canv, &context, ptn, x, y, 10.0);
                 last_position_clone.replace(Some((x, y)));
             }
@@ -146,6 +154,7 @@ fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
     // TODO: Reset last position when button is released
 
     // When cursor moves across canvas
+    let global_colors_clone = global_colors.clone();
     let last_position_clone = last_position.clone();
     let state_clone = global_state.clone();
     let canvas_clone = canvas.clone();
@@ -158,8 +167,8 @@ fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
         let last_position_exists = last_position_clone.borrow().as_ref().is_some();
         if button_state == gdk::ModifierType::BUTTON1_MASK {
             match tool {
-                Some(Tool::Pencil) => {
-                    let ptn = &state_clone.borrow().get_fg_cairo_pattern();
+                Some(ToolEnum::Pencil) => {
+                    let ptn = &global_colors_clone.borrow().get_fg_cairo_pattern();
                     if last_position_exists == true {
                         let last_x = last_position_clone.borrow().as_ref().unwrap().0;
                         let last_y = last_position_clone.borrow().as_ref().unwrap().1;
@@ -169,8 +178,8 @@ fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
                         last_position_clone.replace(Some((x, y)));
                     }
                 }
-                Some(Tool::Eraser) => {
-                    let ptn = &state_clone.borrow().get_bg_cairo_pattern();
+                Some(ToolEnum::Eraser) => {
+                    let ptn = &global_colors_clone.borrow().get_bg_cairo_pattern();
                     if last_position_exists == true {
                         let last_x = last_position_clone.borrow().as_ref().unwrap().0;
                         let last_y = last_position_clone.borrow().as_ref().unwrap().1;
@@ -208,7 +217,7 @@ fn build_tool_box(tool_box: &gtk::Box, state: Rc<RefCell<GlobalState>>) {
     pencil_button.connect_toggled(move |this| {
         if this.get_active() == true {
             let mut new_state = state_clone.borrow_mut();
-            new_state.tool = Some(Tool::Pencil);
+            new_state.tool = Some(ToolEnum::Pencil);
             pencil_button_clone.set_active(false);
         }
     });
@@ -217,7 +226,7 @@ fn build_tool_box(tool_box: &gtk::Box, state: Rc<RefCell<GlobalState>>) {
     eraser_button.connect_toggled(move |this| {
         if this.get_active() == true {
             let mut new_state = state_clone.borrow_mut();
-            new_state.tool = Some(Tool::Eraser);
+            new_state.tool = Some(ToolEnum::Eraser);
             eraser_button_clone.set_active(false);
         }
     });
