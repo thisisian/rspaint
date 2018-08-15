@@ -20,12 +20,11 @@ use std::f64::consts::PI;
 pub mod enums;
 use enums::*;
 
-#[derive(Clone)]
-struct Canvas {
-    drawing_area: gtk::DrawingArea,
-    surface: Rc<RefCell<Option<cairo::Surface>>>,
-    context: Rc<RefCell<Option<cairo::Context>>>,
-}
+pub mod tools;
+use tools::*;
+pub mod canvas;
+use canvas::*;
+
 
 struct GlobalState {
     tool: Option<Tool>,
@@ -50,11 +49,7 @@ fn build_ui(application: &gtk::Application) {
         bg_color: (1., 1., 1.),
     }));
 
-    let canvas: Canvas = Canvas {
-        drawing_area: gtk::DrawingArea::new(),
-        surface: Rc::new(RefCell::new(None)),
-        context: Rc::new(RefCell::new(None)),
-    };
+    let mut canvas: Rc<RefCell<Canvas>> = Rc::new(RefCell::new(Canvas::new()));
 
     window.set_title("RSPaint");
     window.set_default_size(500, 500); // TODO: Set to screen resolution?
@@ -70,7 +65,7 @@ fn build_ui(application: &gtk::Application) {
 
     let canvas_box = gtk::Box::new(Vertical, 0);
     configure_canvas(canvas.clone(), global_state.clone());
-    canvas_box.pack_start(&canvas.drawing_area, false, false, 10);
+    canvas_box.pack_start(&canvas.borrow().get_drawing_area(), false, false, 10);
 
     h_box.pack_start(&tool_box, false, false, 0);
     h_box.pack_start(&canvas_box, false, false, 10);
@@ -80,13 +75,12 @@ fn build_ui(application: &gtk::Application) {
     window.show_all();
 }
 
-fn configure_canvas(canvas: Canvas,
+fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
                     global_state: Rc<RefCell<GlobalState>>) {
 
-    let surface = canvas.surface.clone();
-    let context = canvas.context.clone();
-    let da = canvas.drawing_area.clone();
-    da.set_size_request(400, 400);
+    let drawing_area = canvas.borrow().get_drawing_area();
+    drawing_area.set_size_request(400, 400);
+
 
     let state_clone = global_state.clone();
     let clear_surface = move |surf: &cairo::Surface| {
@@ -98,27 +92,26 @@ fn configure_canvas(canvas: Canvas,
     };
 
     // Runs when drawing area is configured
-    let context_clone = context.clone();
-    let surface_clone = surface.clone();
-    da.connect_configure_event(move |canv, _| {
-        surface_clone.replace(Some(gdk::Window::create_similar_surface(&canv.get_window()
+    let canvas_clone = canvas.clone();
+    drawing_area.connect_configure_event(move |da, _| {
+        canvas_clone.borrow_mut().set_surface(gdk::Window::create_similar_surface(&da.get_window()
             .expect("Failed to get canvas window"),
-                                                                       cairo::Content::Color,
-                                                                       canv.get_allocated_width(),
-                                                                       canv.get_allocated_height())
-            .expect("Failed to create surface")));
-        clear_surface(surface_clone.borrow().as_ref().unwrap());
-        surface_clone.borrow().as_ref().unwrap();
-        context_clone.replace(Some(cairo::Context::new(&surface_clone.borrow().as_ref().unwrap())));
-        context_clone.borrow().as_ref().unwrap().set_antialias(cairo::Antialias::None);
+                                                               cairo::Content::Color,
+                                                               da.get_allocated_width(),
+                                                               da.get_allocated_height())
+            .expect("Failed to create surface"));
+        let surface = canvas_clone.borrow().get_surface();
+        clear_surface(&surface);
+        canvas_clone.borrow_mut().set_context(cairo::Context::new(&surface));
+        canvas_clone.borrow_mut().get_context().set_antialias(cairo::Antialias::None);
         true
     });
 
     // When surface is drawn
-    let surface_clone = surface.clone();
-    let context_clone = context.clone();
-    da.connect_draw(move |_, cr| {
-        cr.set_source_surface(&surface_clone.borrow().as_ref().unwrap(), 0., 0.);
+    let canvas_clone = canvas.clone();
+    drawing_area.connect_draw(move |_, cr| {
+        let surface = canvas_clone.borrow().get_surface();
+        cr.set_source_surface(&surface, 0., 0.);
         cr.paint();
         Inhibit(false)
     });
@@ -126,42 +119,43 @@ fn configure_canvas(canvas: Canvas,
     let last_position : Rc<RefCell<Option<(f64, f64)>>> = Rc::new(RefCell::new(None));
     // When mouse is clicked on canvas
     let state_clone = global_state.clone();
-    let context_clone = context.clone();
-    let surface_clone = surface.clone();
+    let canvas_clone = canvas.clone();
     let last_position_clone = last_position.clone();
-    da.connect_button_press_event(move |canv, event| {
+    drawing_area.connect_button_press_event(move |canv, event| {
+        let surface = canvas_clone.borrow().get_surface();
+        let context = canvas_clone.borrow().get_context();
         let (x, y) = event.get_position();
         let tool = state_clone.borrow().tool;
         match tool {
             Some(Tool::Pencil) => {
                 let ptn = &state_clone.borrow().get_fg_cairo_pattern();
-                draw_dot(canv, context_clone.borrow().as_ref().unwrap(), ptn, x, y, 10.0);
+                draw_dot(canv, &context, ptn, x, y, 10.0);
                 last_position_clone.replace(Some((x, y)));
             },
             Some(Tool::Eraser) => {
                 let ptn = &state_clone.borrow().get_bg_cairo_pattern();
-                draw_dot(canv, context_clone.borrow().as_ref().unwrap(), ptn, x, y, 10.0);
+                draw_dot(canv, &context, ptn, x, y, 10.0);
                 last_position_clone.replace(Some((x, y)));
             }
             _ => {},
         }
-        context_clone.borrow().as_ref().unwrap().move_to(x, y); // TODO: Choose whether to use this or not
+        context.move_to(x, y); // TODO: Choose whether to use this or not
         Inhibit(false)
     });
 
     // TODO: Reset last position when button is released
 
     // When cursor moves across canvas
-    let context_clone = context.clone();
-    let state_clone = global_state.clone();
-    let surface_clone = surface.clone();
     let last_position_clone = last_position.clone();
-    da.connect_motion_notify_event(move |da, event| {
+    let state_clone = global_state.clone();
+    let canvas_clone = canvas.clone();
+    drawing_area.connect_motion_notify_event(move |da, event| {
+        let surface = canvas.borrow().get_surface();
+        let context = canvas.borrow().get_context();
         let (x, y) = event.get_position();
         let button_state = event.get_state();
         let tool = state_clone.borrow().tool;
         let last_position_exists = last_position_clone.borrow().as_ref().is_some();
-        let cr = context_clone.borrow();
         if button_state == gdk::ModifierType::BUTTON1_MASK {
             match tool {
                 Some(Tool::Pencil) => {
@@ -169,9 +163,9 @@ fn configure_canvas(canvas: Canvas,
                     if last_position_exists == true {
                         let last_x = last_position_clone.borrow().as_ref().unwrap().0;
                         let last_y = last_position_clone.borrow().as_ref().unwrap().1;
-                        draw_line(da, cr.as_ref().unwrap(), ptn, last_x, last_y, x, y, 10.0);
+                        draw_line(da, &context, ptn, last_x, last_y, x, y, 10.0);
                     } else {
-                        draw_dot(da, context.borrow().as_ref().unwrap(), ptn, x, y, 10.0);
+                        draw_dot(da, &context, ptn, x, y, 10.0);
                         last_position_clone.replace(Some((x, y)));
                     }
                 }
@@ -180,9 +174,9 @@ fn configure_canvas(canvas: Canvas,
                     if last_position_exists == true {
                         let last_x = last_position_clone.borrow().as_ref().unwrap().0;
                         let last_y = last_position_clone.borrow().as_ref().unwrap().1;
-                        draw_line(da, cr.as_ref().unwrap(), ptn, last_x, last_y, x, y, 10.0);
+                        draw_line(da, &context, ptn, last_x, last_y, x, y, 10.0);
                     } else {
-                        draw_dot(da, context.borrow().as_ref().unwrap(), ptn, x, y, 10.0);
+                        draw_dot(da, &context, ptn, x, y, 10.0);
                         last_position_clone.replace(Some((x, y)));
                     }
                 },
@@ -194,39 +188,8 @@ fn configure_canvas(canvas: Canvas,
     });
 
     // Register the events.
-    da.add_events(gdk::EventMask::BUTTON_PRESS_MASK.bits() as i32|
+    drawing_area.add_events(gdk::EventMask::BUTTON_PRESS_MASK.bits() as i32|
                       gdk::EventMask::BUTTON_MOTION_MASK.bits() as i32);
-}
-
-// Draw line on surface from x1, y1 to x2, y2.
-fn draw_line(da: &gtk::DrawingArea,
-             cr: &cairo::Context,
-             ptn: &cairo::SolidPattern,
-             x1: f64, y1: f64, x2: f64, y2: f64, width: f64) {
-    cr.move_to(x1, y1);
-    cr.line_to(x2, y2);
-    cr.set_line_cap(cairo::LineCap::Round);
-    cr.set_source(ptn);
-    cr.set_line_width(width);
-    cr.stroke();
-    da.queue_draw();
-}
-
-
-fn draw_dot(da: &gtk::DrawingArea,
-            cr: &cairo::Context,
-            ptn: &cairo::SolidPattern, x: f64, y: f64, diameter: f64) {
-    cr.arc(x, y, diameter/2., 0_f64, 2.*PI);
-    cr.set_source(ptn);
-    cr.fill();
-    // Redraw area larger than rectangle due to floating point rounding
-    let redraw_sz = (diameter * SQRT_2).ceil() as i32;
-    let redraw_x = (x - redraw_sz as f64 / 2.).floor() as i32;
-    let redraw_y = (y - redraw_sz as f64 / 2.).floor() as i32;
-    da.queue_draw_area(redraw_x,
-                       redraw_y,
-                       redraw_sz,
-                       redraw_sz);
 }
 
 fn build_tool_box(tool_box: &gtk::Box, state: Rc<RefCell<GlobalState>>) {
@@ -318,4 +281,34 @@ fn main() {
     application.run(&args().collect::<Vec<_>>());
 
     gtk::main();
+}
+
+// Draw line on surface from x1, y1 to x2, y2.
+fn draw_line(da: &gtk::DrawingArea,
+             cr: &cairo::Context,
+             ptn: &cairo::SolidPattern,
+             x1: f64, y1: f64, x2: f64, y2: f64, width: f64) {
+    cr.move_to(x1, y1);
+    cr.line_to(x2, y2);
+    cr.set_line_cap(cairo::LineCap::Round);
+    cr.set_source(ptn);
+    cr.set_line_width(width);
+    cr.stroke();
+    da.queue_draw();
+}
+
+fn draw_dot(da: &gtk::DrawingArea,
+            cr: &cairo::Context,
+            ptn: &cairo::SolidPattern, x: f64, y: f64, diameter: f64) {
+    cr.arc(x, y, diameter/2., 0_f64, 2.*PI);
+    cr.set_source(ptn);
+    cr.fill();
+    // Redraw area larger than rectangle due to floating point rounding
+    let redraw_sz = (diameter * SQRT_2).ceil() as i32;
+    let redraw_x = (x - redraw_sz as f64 / 2.).floor() as i32;
+    let redraw_y = (y - redraw_sz as f64 / 2.).floor() as i32;
+    da.queue_draw_area(redraw_x,
+                       redraw_y,
+                       redraw_sz,
+                       redraw_sz);
 }
