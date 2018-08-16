@@ -23,25 +23,29 @@ use enums::*;
 pub mod canvas;
 use canvas::*;
 
+/// Holds the global tool
 struct GlobalState {
     tool: Option<ToolEnum>,
 }
 
+/// Holds global foreground/background colors
 struct GlobalColors {
     fg_color: RGBColor,
     bg_color: RGBColor,
 }
 
 impl GlobalColors {
+    /// Gets cairo pattern from foreground color
     fn get_fg_cairo_pattern(&self) -> cairo::SolidPattern {
         cairo::SolidPattern::from_rgb(self.fg_color.0, self.fg_color.1, self.fg_color.2)
     }
+    /// Gets cairo pattern for background color
     fn get_bg_cairo_pattern(&self) -> cairo::SolidPattern {
         cairo::SolidPattern::from_rgb(self.bg_color.0, self.bg_color.1, self.bg_color.2)
     }
 }
 
-
+/// A struct describing an RGB color
 struct RGBColor(f64, f64, f64);
 
 fn build_ui(application: &gtk::Application) {
@@ -80,6 +84,7 @@ fn build_ui(application: &gtk::Application) {
     window.show_all();
 }
 
+/// Configuration for the canvas including registering events.
 fn configure_canvas(canvas: Rc<RefCell<Canvas>>,
                     global_state: Rc<RefCell<GlobalState>>,
                     global_colors: Rc<RefCell<GlobalColors>>) {
@@ -143,7 +148,6 @@ fn configure_canvas(canvas: Rc<RefCell<Canvas>>,
             }
             _ => {},
         }
-        context.move_to(x, y); // TODO: Choose whether to use this or not
         Inhibit(false)
     });
 
@@ -195,6 +199,7 @@ fn configure_canvas(canvas: Rc<RefCell<Canvas>>,
                       gdk::EventMask::BUTTON_MOTION_MASK.bits() as i32);
 }
 
+/// Build tool box
 fn build_tool_box(tool_box: &gtk::Box, state: Rc<RefCell<GlobalState>>) {
     let pencil_button = gtk::ToggleButton::new();
     let eraser_button = gtk::ToggleButton::new();
@@ -286,7 +291,7 @@ fn main() {
     gtk::main();
 }
 
-// Draw line on surface from x1, y1 to x2, y2.
+/// Draw line on `da` using cairo context `cr` from `x1`, `y1` to `x2`, `y2`.
 fn draw_line(da: &gtk::DrawingArea,
              cr: &cairo::Context,
              ptn: &cairo::SolidPattern,
@@ -300,6 +305,7 @@ fn draw_line(da: &gtk::DrawingArea,
     da.queue_draw();
 }
 
+/// Draw a dot on `da` using cairo context `cr` at `x`, `y` with given `diameter`
 fn draw_dot(da: &gtk::DrawingArea,
             cr: &cairo::Context,
             ptn: &cairo::SolidPattern, x: f64, y: f64, diameter: f64) {

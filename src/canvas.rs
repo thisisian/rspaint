@@ -1,6 +1,7 @@
 extern crate cairo;
 extern crate gtk;
 
+/// Canvas struct holds variables relating to the drawing canvas.
 #[derive(Clone)]
 pub struct Canvas {
     drawing_area: gtk::DrawingArea,
