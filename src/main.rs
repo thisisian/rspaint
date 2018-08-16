@@ -20,8 +20,6 @@ use std::f64::consts::PI;
 pub mod enums;
 use enums::*;
 
-pub mod tools;
-use tools::*;
 pub mod canvas;
 use canvas::*;
 
@@ -56,7 +54,7 @@ fn build_ui(application: &gtk::Application) {
         tool: None,
     }));
 
-    let mut canvas: Rc<RefCell<Canvas>> = Rc::new(RefCell::new(Canvas::new()));
+    let canvas: Rc<RefCell<Canvas>> = Rc::new(RefCell::new(Canvas::new()));
 
     window.set_title("RSPaint");
     window.set_default_size(500, 500); // TODO: Set to screen resolution?
@@ -82,13 +80,12 @@ fn build_ui(application: &gtk::Application) {
     window.show_all();
 }
 
-fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
+fn configure_canvas(canvas: Rc<RefCell<Canvas>>,
                     global_state: Rc<RefCell<GlobalState>>,
                     global_colors: Rc<RefCell<GlobalColors>>) {
 
     let drawing_area = canvas.borrow().get_drawing_area();
     drawing_area.set_size_request(400, 400);
-    let state_clone = global_state.clone();
     let global_colors_clone = global_colors.clone();
     let clear_surface = move |surf: &cairo::Surface| {
         let cr = cairo::Context::new(surf);
@@ -130,7 +127,6 @@ fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
     let canvas_clone = canvas.clone();
     let last_position_clone = last_position.clone();
     drawing_area.connect_button_press_event(move |canv, event| {
-        let surface = canvas_clone.borrow().get_surface();
         let context = canvas_clone.borrow().get_context();
         let (x, y) = event.get_position();
         let tool = state_clone.borrow().tool;
@@ -157,9 +153,7 @@ fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
     let global_colors_clone = global_colors.clone();
     let last_position_clone = last_position.clone();
     let state_clone = global_state.clone();
-    let canvas_clone = canvas.clone();
     drawing_area.connect_motion_notify_event(move |da, event| {
-        let surface = canvas.borrow().get_surface();
         let context = canvas.borrow().get_context();
         let (x, y) = event.get_position();
         let button_state = event.get_state();

@@ -1,9 +1,6 @@
 extern crate cairo;
 extern crate gtk;
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
 #[derive(Clone)]
 pub struct Canvas {
     drawing_area: gtk::DrawingArea,
