@@ -21,7 +21,6 @@ pub mod enums;
 use enums::*;
 
 pub mod tools;
-use tools::*;
 pub mod canvas;
 use canvas::*;
 
@@ -43,12 +42,19 @@ impl GlobalColors {
     }
 }
 
+/// RGB Color 
 
 struct RGBColor(f64, f64, f64);
 
+impl RGBColor {
+    fn get_cairo_pattern(&self) -> cairo::SolidPattern {
+        cairo::SolidPattern::from_rgb(self.0, self.1, self.2)
+    }
+}
+
 fn build_ui(application: &gtk::Application) {
     let window = ApplicationWindow::new(application);
-    let global_colors = Rc::new(RefCell::new(GlobalColors{
+    let global_colors = Rc::new(RefCell::new(GlobalColors {
         fg_color: RGBColor(0.,0.,0.),
         bg_color: RGBColor(1.,1.,1.)
     }));
@@ -56,7 +62,7 @@ fn build_ui(application: &gtk::Application) {
         tool: None,
     }));
 
-    let mut canvas: Rc<RefCell<Canvas>> = Rc::new(RefCell::new(Canvas::new()));
+    let canvas: Rc<RefCell<Canvas>> = Rc::new(RefCell::new(Canvas::new()));
 
     window.set_title("RSPaint");
     window.set_default_size(500, 500); // TODO: Set to screen resolution?
@@ -82,18 +88,17 @@ fn build_ui(application: &gtk::Application) {
     window.show_all();
 }
 
-fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
+fn configure_canvas<'a>(canvas: Rc<RefCell<Canvas>>,
                     global_state: Rc<RefCell<GlobalState>>,
                     global_colors: Rc<RefCell<GlobalColors>>) {
-
     let drawing_area = canvas.borrow().get_drawing_area();
+
     drawing_area.set_size_request(400, 400);
-    let state_clone = global_state.clone();
-    let global_colors_clone = global_colors.clone();
+    let colors_clone = global_colors.clone();
     let clear_surface = move |surf: &cairo::Surface| {
         let cr = cairo::Context::new(surf);
         cr.set_antialias(cairo::Antialias::None);
-        let ptn = &global_colors_clone.borrow().get_bg_cairo_pattern();
+        let ptn = &colors_clone.borrow().get_bg_cairo_pattern();
         cr.set_source(ptn);
         cr.paint();
     };
@@ -126,22 +131,21 @@ fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
     let last_position : Rc<RefCell<Option<(f64, f64)>>> = Rc::new(RefCell::new(None));
     // When mouse is clicked on canvas
     let state_clone = global_state.clone();
-    let global_colors_clone = global_colors.clone();
     let canvas_clone = canvas.clone();
+    let colors_clone = global_colors.clone();
     let last_position_clone = last_position.clone();
     drawing_area.connect_button_press_event(move |canv, event| {
-        let surface = canvas_clone.borrow().get_surface();
         let context = canvas_clone.borrow().get_context();
         let (x, y) = event.get_position();
         let tool = state_clone.borrow().tool;
         match tool {
             Some(ToolEnum::Pencil) => {
-                let ptn = &global_colors_clone.borrow().get_fg_cairo_pattern();
+                let ptn = &colors_clone.borrow().get_fg_cairo_pattern();
                 draw_dot(canv, &context, ptn, x, y, 10.0);
                 last_position_clone.replace(Some((x, y)));
             },
             Some(ToolEnum::Eraser) => {
-                let ptn = &global_colors_clone.borrow().get_bg_cairo_pattern();
+                let ptn = &colors_clone.borrow().get_bg_cairo_pattern();
                 draw_dot(canv, &context, ptn, x, y, 10.0);
                 last_position_clone.replace(Some((x, y)));
             }
@@ -154,10 +158,9 @@ fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
     // TODO: Reset last position when button is released
 
     // When cursor moves across canvas
-    let global_colors_clone = global_colors.clone();
+    let colors_clone = global_colors.clone();
     let last_position_clone = last_position.clone();
     let state_clone = global_state.clone();
-    let canvas_clone = canvas.clone();
     drawing_area.connect_motion_notify_event(move |da, event| {
         let surface = canvas.borrow().get_surface();
         let context = canvas.borrow().get_context();
@@ -168,7 +171,7 @@ fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
         if button_state == gdk::ModifierType::BUTTON1_MASK {
             match tool {
                 Some(ToolEnum::Pencil) => {
-                    let ptn = &global_colors_clone.borrow().get_fg_cairo_pattern();
+                    let ptn = &colors_clone.borrow().get_fg_cairo_pattern();
                     if last_position_exists == true {
                         let last_x = last_position_clone.borrow().as_ref().unwrap().0;
                         let last_y = last_position_clone.borrow().as_ref().unwrap().1;
@@ -179,7 +182,7 @@ fn configure_canvas(mut canvas: Rc<RefCell<Canvas>>,
                     }
                 }
                 Some(ToolEnum::Eraser) => {
-                    let ptn = &global_colors_clone.borrow().get_bg_cairo_pattern();
+                    let ptn = &colors_clone.borrow().get_bg_cairo_pattern();
                     if last_position_exists == true {
                         let last_x = last_position_clone.borrow().as_ref().unwrap().0;
                         let last_y = last_position_clone.borrow().as_ref().unwrap().1;

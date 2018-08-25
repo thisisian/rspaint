@@ -12,33 +12,40 @@ use std::rc::Rc;
 use GlobalColors;
 use canvas::Canvas;
 
-pub struct Tools <'a, T>
-    where T: 'a + Tool {
-    current: &'a T,
+// Default width for tools
+const DEFAULT_WIDTH: f64 = 5.;
+
+/// Toolset holds all tools and their state
+pub struct Toolset {
     pencil: Pencil,
     eraser: Eraser,
 }
 
+impl Toolset {
+    pub fn new() -> Self {
+        Toolset {
+            pencil: Pencil::new(),
+            eraser: Eraser::new(),
+        }
+    }
+}
+
+
+// Tool is a tool which can be used on the canvas
 pub trait Tool {
-    fn new() -> Self;
     fn on_click(&self, x: f64, y: f64);
-    fn on_movement(&self, x: f64, y: f64);
+    fn on_movement(&self, x1: f64, y1: f64, x2: f64, y2: f64);
     fn on_release(&self, x:f64, y: f64);
 }
 
 pub struct Pencil {
-    canvas: Rc<RefCell<Canvas>>,
-    global_colors: Rc<RefCell<GlobalColors>>,
     width: f64,
 }
 
 impl Pencil {
-    fn new(canvas: Rc<RefCell<Canvas>>,
-           global_colors: Rc<RefCell<GlobalColors>>) -> Self {
+    fn new() -> Self {
         Pencil {
-            canvas,
-            global_colors,
-            width: 1.,
+            width: DEFAULT_WIDTH,
         }
     }
 
@@ -48,18 +55,11 @@ impl Pencil {
 }
 
 impl Tool for Pencil {
-    fn new() -> Self {
-        panic!("Tool::new() should not be called to create a Pencil")
-    }
 
     fn on_click(&self, x: f64, y: f64){
-        draw_dot(&self.canvas.borrow().get_drawing_area(),
-                 &self.canvas.borrow().get_context(),
-                 &self.global_colors.borrow().get_fg_cairo_pattern(),
-                 x, y, self.width);
     }
 
-    fn on_movement(&self, x: f64, y: f64){
+    fn on_movement(&self, x1: f64, y1: f64, x2:f64, y2: f64){
     }
 
     fn on_release(&self, x: f64, y: f64){
@@ -67,29 +67,28 @@ impl Tool for Pencil {
 }
 
 pub struct Eraser {
-    canvas: Rc<RefCell<Canvas>>,
-    global_colors: Rc<RefCell<GlobalColors>>,
     width: f64,
 }
 
-impl Tool for Eraser {
+impl Eraser {
     fn new() -> Self {
-        panic!("Tool::new should not be called to create an Eraser")
+        Eraser {
+            width: DEFAULT_WIDTH,
+        }
     }
+}
+
+impl Tool for Eraser {
     fn on_click(&self, x: f64, y: f64){
 
     }
-    fn on_movement(&self, x: f64, y: f64){
+
+    fn on_movement(&self, x1: f64, y1: f64, x2:f64, y2: f64){
 
     }
     fn on_release(&self, x: f64, y: f64){
 
     }
-}
-//test test test
-
-impl Eraser {
-
 }
 
 // Draw line on surface from x1, y1 to x2, y2.
