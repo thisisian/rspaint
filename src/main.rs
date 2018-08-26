@@ -20,9 +20,13 @@ use std::f64::consts::PI;
 pub mod enums;
 use enums::*;
 
+pub mod controller;
+use controller::Controller;
 pub mod tools;
 pub mod canvas;
 use canvas::*;
+pub mod color;
+use color::RGBColor;
 
 struct GlobalState {
     tool: Option<ToolEnum>,
@@ -33,30 +37,11 @@ struct GlobalColors {
     bg_color: RGBColor,
 }
 
-impl GlobalColors {
-    fn get_fg_cairo_pattern(&self) -> cairo::SolidPattern {
-        cairo::SolidPattern::from_rgb(self.fg_color.0, self.fg_color.1, self.fg_color.2)
-    }
-    fn get_bg_cairo_pattern(&self) -> cairo::SolidPattern {
-        cairo::SolidPattern::from_rgb(self.bg_color.0, self.bg_color.1, self.bg_color.2)
-    }
-}
-
-/// RGB Color 
-
-struct RGBColor(f64, f64, f64);
-
-impl RGBColor {
-    fn get_cairo_pattern(&self) -> cairo::SolidPattern {
-        cairo::SolidPattern::from_rgb(self.0, self.1, self.2)
-    }
-}
-
 fn build_ui(application: &gtk::Application) {
     let window = ApplicationWindow::new(application);
     let global_colors = Rc::new(RefCell::new(GlobalColors {
-        fg_color: RGBColor(0.,0.,0.),
-        bg_color: RGBColor(1.,1.,1.)
+        fg_color: RGBColor::new(0, 0, 0),
+        bg_color: RGBColor::new(128, 128, 128),
     }));
     let global_state: Rc<RefCell<GlobalState>> = Rc::new(RefCell::new(GlobalState {
         tool: None,
@@ -98,7 +83,7 @@ fn configure_canvas<'a>(canvas: Rc<RefCell<Canvas>>,
     let clear_surface = move |surf: &cairo::Surface| {
         let cr = cairo::Context::new(surf);
         cr.set_antialias(cairo::Antialias::None);
-        let ptn = &colors_clone.borrow().get_bg_cairo_pattern();
+        let ptn = &colors_clone.borrow().bg_color.get_cairo_pattern();
         cr.set_source(ptn);
         cr.paint();
     };
@@ -135,17 +120,19 @@ fn configure_canvas<'a>(canvas: Rc<RefCell<Canvas>>,
     let colors_clone = global_colors.clone();
     let last_position_clone = last_position.clone();
     drawing_area.connect_button_press_event(move |canv, event| {
+        println!("Position: {:?}, State: {:?}, Button {:?}", event.get_position(), event.get_state(), event.get_button());
         let context = canvas_clone.borrow().get_context();
         let (x, y) = event.get_position();
+        let (x, y) = (x.floor(), y.floor());
         let tool = state_clone.borrow().tool;
         match tool {
             Some(ToolEnum::Pencil) => {
-                let ptn = &colors_clone.borrow().get_fg_cairo_pattern();
+                let ptn = &colors_clone.borrow().fg_color.get_cairo_pattern();
                 draw_dot(canv, &context, ptn, x, y, 10.0);
                 last_position_clone.replace(Some((x, y)));
             },
             Some(ToolEnum::Eraser) => {
-                let ptn = &colors_clone.borrow().get_bg_cairo_pattern();
+                let ptn = &colors_clone.borrow().bg_color.get_cairo_pattern();
                 draw_dot(canv, &context, ptn, x, y, 10.0);
                 last_position_clone.replace(Some((x, y)));
             }
@@ -162,6 +149,7 @@ fn configure_canvas<'a>(canvas: Rc<RefCell<Canvas>>,
     let last_position_clone = last_position.clone();
     let state_clone = global_state.clone();
     drawing_area.connect_motion_notify_event(move |da, event| {
+        println!("Position: {:?}, State: {:?}", event.get_position(), event.get_state());
         let surface = canvas.borrow().get_surface();
         let context = canvas.borrow().get_context();
         let (x, y) = event.get_position();
@@ -171,7 +159,7 @@ fn configure_canvas<'a>(canvas: Rc<RefCell<Canvas>>,
         if button_state == gdk::ModifierType::BUTTON1_MASK {
             match tool {
                 Some(ToolEnum::Pencil) => {
-                    let ptn = &colors_clone.borrow().get_fg_cairo_pattern();
+                    let ptn = &colors_clone.borrow().fg_color.get_cairo_pattern();
                     if last_position_exists == true {
                         let last_x = last_position_clone.borrow().as_ref().unwrap().0;
                         let last_y = last_position_clone.borrow().as_ref().unwrap().1;
@@ -182,7 +170,7 @@ fn configure_canvas<'a>(canvas: Rc<RefCell<Canvas>>,
                     }
                 }
                 Some(ToolEnum::Eraser) => {
-                    let ptn = &colors_clone.borrow().get_bg_cairo_pattern();
+                    let ptn = &colors_clone.borrow().bg_color.get_cairo_pattern();
                     if last_position_exists == true {
                         let last_x = last_position_clone.borrow().as_ref().unwrap().0;
                         let last_y = last_position_clone.borrow().as_ref().unwrap().1;
@@ -284,6 +272,8 @@ fn build_menu(application: &gtk::Application) {
 fn main() {
     let application = gtk::Application::new("org.github.thisisian.rspaint",
                                             gio::ApplicationFlags::empty()).expect("Initialization Failed...");
+
+    let controller = Controller::new();
 
     application.connect_startup(|app| {
         build_ui(app)

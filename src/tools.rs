@@ -8,90 +8,103 @@ use std::f64::consts::SQRT_2;
 use std::f64::consts::PI;
 use std::cell::RefCell;
 use std::rc::Rc;
+use color::RGBColor;
 
 use GlobalColors;
 use canvas::Canvas;
 
 // Default width for tools
-const DEFAULT_WIDTH: f64 = 5.;
+const DEFAULT_WIDTH: usize = 5;
 
-/// Toolset holds all tools and their state
+/// Toolset holds all tools and their states and settings
 pub struct Toolset {
-    pencil: Pencil,
-    eraser: Eraser,
+    current: Rc<RefCell<Tool>>,
+    width: usize,
+    fg_color: RGBColor,
+    bg_color: RGBColor,
+    pencil: Rc<RefCell<Pencil>>,
+    eraser: Rc<RefCell<Eraser>>,
 }
 
 impl Toolset {
     pub fn new() -> Self {
+        // To set up default tool, declare pencil outside of struct declaration
+        let pencil = Rc::new(RefCell::new(Pencil::new()));
         Toolset {
-            pencil: Pencil::new(),
-            eraser: Eraser::new(),
+            fg_color: RGBColor::new(0, 0, 0),
+            bg_color: RGBColor::new(128, 128, 128),
+            width: DEFAULT_WIDTH,
+            pencil: pencil.clone(),
+            eraser: Rc::new(RefCell::new(Eraser::new())),
+            current: pencil.clone(),
         }
+    }
+
+    pub fn set_current(&mut self, new_tool: Rc<RefCell<Tool>>) {
+        self.current = new_tool.clone();
+    }
+
+    pub fn get_current(&self) -> Rc<RefCell<Tool>> {
+        self.current.clone()
     }
 }
 
-
 // Tool is a tool which can be used on the canvas
 pub trait Tool {
-    fn on_click(&self, x: f64, y: f64);
-    fn on_movement(&self, x1: f64, y1: f64, x2: f64, y2: f64);
-    fn on_release(&self, x:f64, y: f64);
+    fn on_click(&self, state: &gdk::ModifierType, settings: &Toolset, x: usize, y: usize);
+    fn on_movement(&self, state: &gdk::ModifierType, settings: &Toolset, x1: usize, y1: usize, x2: usize, y2: usize);
+    fn on_release(&self, state: &gdk::ModifierType, settings: &Toolset, x:usize, y: usize);
 }
 
-pub struct Pencil {
-    width: f64,
+// Pencil 
+
+struct Pencil {
 }
 
 impl Pencil {
     fn new() -> Self {
         Pencil {
-            width: DEFAULT_WIDTH,
         }
-    }
-
-    fn set_width(&mut self, width: f64) {
-        self.width = width;
     }
 }
 
 impl Tool for Pencil {
 
-    fn on_click(&self, x: f64, y: f64){
+    fn on_click(&self, button_state: &gdk::ModifierType, settings: &Toolset, x: usize, y: usize) {
     }
 
-    fn on_movement(&self, x1: f64, y1: f64, x2:f64, y2: f64){
+    fn on_movement(&self, button_state:&gdk::ModifierType, settings: &Toolset, x1: usize, y1: usize, x2:usize, y2: usize) {
     }
 
-    fn on_release(&self, x: f64, y: f64){
+    fn on_release(&self, button_state:&gdk::ModifierType, settings: &Toolset, x: usize, y: usize) {
     }
 }
 
+// Eraser
+
 pub struct Eraser {
-    width: f64,
 }
 
 impl Eraser {
     fn new() -> Self {
         Eraser {
-            width: DEFAULT_WIDTH,
         }
     }
 }
 
 impl Tool for Eraser {
-    fn on_click(&self, x: f64, y: f64){
-
+    fn on_click(&self, state: &gdk::ModifierType, settings: &Toolset, x: usize, y: usize){
+    }
+    
+    fn on_movement(&self, state: &gdk::ModifierType, settings: &Toolset, x1: usize, y1: usize, x2:usize, y2: usize){
     }
 
-    fn on_movement(&self, x1: f64, y1: f64, x2:f64, y2: f64){
-
-    }
-    fn on_release(&self, x: f64, y: f64){
-
+    fn on_release(&self, state: &gdk::ModifierType, settings: &Toolset, x: usize, y: usize){
     }
 }
 
-// Draw line on surface from x1, y1 to x2, y2.
+// Utility functions
+
 fn draw_line(da: &gtk::DrawingArea,
              cr: &cairo::Context,
              ptn: &cairo::SolidPattern,
