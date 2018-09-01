@@ -24,8 +24,8 @@ pub struct Controller {
 
 impl Controller {
     // Create the controller, creates a shared reference 
-    pub fn new() -> (RefCell<Rc<Controller>>) {
-        let ctrl = RefCell::new(Rc::new(Controller {
+    pub fn new() -> (Rc<RefCell<Controller>>) {
+        let ctrl = Rc::new(RefCell::new(Controller {
             drawing_area: gtk::DrawingArea::new(),
             tools: Toolset::new(),
             model: Canvas::new(CANVAS_WIDTH, CANVAS_WIDTH),
@@ -35,7 +35,7 @@ impl Controller {
         ctrl
     }
 
-    fn init_drawing_area(ctrl: RefCell<Rc<Controller>>) {
+    fn init_drawing_area(ctrl: Rc<RefCell<Controller>>) {
         ctrl.borrow().get_drawing_area().set_size_request(CANVAS_WIDTH as i32, CANVAS_WIDTH as i32);
 
         // Emits when drawing_area's window's position changes
@@ -62,14 +62,11 @@ impl Controller {
             let state = event.get_state();
             Inhibit(false)
         });
+        
+        //Register events
     }
 
-    fn get_drawing_area(&self) -> gtk::DrawingArea {
+    pub fn get_drawing_area(&self) -> gtk::DrawingArea {
         self.drawing_area.clone()
     }
-
-    fn get_context(&self) -> cairo::Context {
-       unimplemented!() 
-    }
-
 }
