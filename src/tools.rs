@@ -9,43 +9,34 @@ use std::f64::consts::PI;
 use std::cell::RefCell;
 use std::rc::Rc;
 use color::RGBColor;
-
-use GlobalColors;
-use canvas::Canvas;
+use Controller;
+use gdk::ModifierType;
 
 // Default width for tools
 const DEFAULT_WIDTH: usize = 5;
+const DEFAULT_FG_COLOR: RGBColor = super::color::BLACK;
+const DEFAULT_BG_COLOR: RGBColor = super::color::WHITE;
 
 /// Toolset holds all tools and their states and settings
 pub struct Toolset {
-    current: Rc<RefCell<Tool>>,
     width: usize,
     fg_color: RGBColor,
     bg_color: RGBColor,
-    pencil: Rc<RefCell<Pencil>>,
-    eraser: Rc<RefCell<Eraser>>,
+    pencil: Pencil,
+    eraser: Eraser,
 }
 
 impl Toolset {
     pub fn new() -> Self {
-        // To set up default tool, declare pencil outside of struct declaration
+        // For default tool, declare pencil outside of struct declaration
         let pencil = Rc::new(RefCell::new(Pencil::new()));
         Toolset {
-            fg_color: RGBColor::new(0, 0, 0),
-            bg_color: RGBColor::new(128, 128, 128),
+            fg_color: DEFAULT_FG_COLOR,
+            bg_color: DEFAULT_BG_COLOR,
             width: DEFAULT_WIDTH,
-            pencil: pencil.clone(),
-            eraser: Rc::new(RefCell::new(Eraser::new())),
-            current: pencil.clone(),
+            pencil: Pencil::new(),
+            eraser: Eraser::new(),
         }
-    }
-
-    pub fn set_current(&mut self, new_tool: Rc<RefCell<Tool>>) {
-        self.current = new_tool.clone();
-    }
-
-    pub fn get_current(&self) -> Rc<RefCell<Tool>> {
-        self.current.clone()
     }
 }
 

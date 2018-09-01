@@ -21,6 +21,7 @@ pub mod enums;
 use enums::*;
 
 pub mod controller;
+pub mod shape;
 use controller::Controller;
 pub mod tools;
 pub mod canvas;

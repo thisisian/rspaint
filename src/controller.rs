@@ -59,4 +59,9 @@ impl Controller {
     fn get_drawing_area(&self) -> gtk::DrawingArea {
         self.drawing_area.clone()
     }
+
+    fn get_context(&self) -> cairo::Context {
+       unimplemented!() 
+    }
+
 }

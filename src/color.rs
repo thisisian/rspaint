@@ -1,6 +1,9 @@
 extern crate cairo;
 pub struct RGBColor(u8, u8, u8);
 
+pub const BLACK: RGBColor = RGBColor(0, 0, 0);
+pub const WHITE: RGBColor = RGBColor(128, 128, 128);
+
 impl RGBColor {
     pub fn get_rgb(&self) -> (u8, u8, u8) {
         (self.0, self.1, self.2)
