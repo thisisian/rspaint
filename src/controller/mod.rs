@@ -3,16 +3,23 @@ extern crate gdk;
 extern crate cairo;
 
 use gtk::prelude::*;
-use tools::Toolset;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+pub mod color;
+mod canvas;
+mod shape;
+mod tools;
 
-const CANVAS_WIDTH: u32 = 400;
+use self::tools::Toolset;
+use self::canvas::Canvas;
+
+const CANVAS_WIDTH: usize = 400;
 
 pub struct Controller {
     drawing_area: gtk::DrawingArea,
     tools: Toolset,
+    model: canvas::Canvas,
 }
 
 impl Controller {
@@ -21,6 +28,7 @@ impl Controller {
         let ctrl = RefCell::new(Rc::new(Controller {
             drawing_area: gtk::DrawingArea::new(),
             tools: Toolset::new(),
+            model: Canvas::new(CANVAS_WIDTH, CANVAS_WIDTH),
         }));
 
         Controller::init_drawing_area(ctrl.clone());

@@ -17,17 +17,15 @@ use std::option::Option::*;
 use std::f64::consts::SQRT_2;
 use std::f64::consts::PI;
 
-pub mod enums;
+mod enums;
 use enums::*;
 
-pub mod controller;
-pub mod shape;
+mod controller;
+mod canvas_old;
+
+use controller::color::RGBColor;
+use canvas_old::Canvas;
 use controller::Controller;
-pub mod tools;
-pub mod canvas;
-use canvas::*;
-pub mod color;
-use color::RGBColor;
 
 struct GlobalState {
     tool: Option<ToolEnum>,

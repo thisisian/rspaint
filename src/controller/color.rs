@@ -22,4 +22,8 @@ impl RGBColor {
     pub fn get_cairo_pattern(&self) -> cairo::SolidPattern {
         cairo::SolidPattern::from_rgb(self.0 as f64 / 128., self.1 as f64 / 128., self.2 as f64 / 128.)
     }
+
+    pub fn as_usize(&self) -> usize {
+        (self.0 as usize) << 16 | (self.1 as usize) << 8 | (self.2) as usize
+    }
 }

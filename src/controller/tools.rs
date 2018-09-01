@@ -8,9 +8,7 @@ use std::f64::consts::SQRT_2;
 use std::f64::consts::PI;
 use std::cell::RefCell;
 use std::rc::Rc;
-use color::RGBColor;
-use Controller;
-use gdk::ModifierType;
+use controller::color::RGBColor;
 
 // Default width for tools
 const DEFAULT_WIDTH: usize = 5;
