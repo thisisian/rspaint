@@ -9,6 +9,7 @@ use std::f64::consts::PI;
 use std::cell::RefCell;
 use std::rc::Rc;
 use controller::color::RGBColor;
+use enums::ToolNames;
 
 // Default width for tools
 const DEFAULT_WIDTH: usize = 5;
@@ -18,21 +19,17 @@ const DEFAULT_BG_COLOR: RGBColor = super::color::WHITE;
 /// Toolset holds all tools and their states and settings
 pub struct Toolset {
     width: usize,
-    fg_color: RGBColor,
-    bg_color: RGBColor,
-    pencil: Pencil,
+    brush: Brush,
     eraser: Eraser,
 }
 
 impl Toolset {
     pub fn new() -> Self {
         // For default tool, declare pencil outside of struct declaration
-        let pencil = Rc::new(RefCell::new(Pencil::new()));
+        let pencil = Rc::new(RefCell::new(Brush::new()));
         Toolset {
-            fg_color: DEFAULT_FG_COLOR,
-            bg_color: DEFAULT_BG_COLOR,
             width: DEFAULT_WIDTH,
-            pencil: Pencil::new(),
+            brush: Brush::new(),
             eraser: Eraser::new(),
         }
     }
@@ -47,17 +44,17 @@ pub trait Tool {
 
 // Pencil 
 
-struct Pencil {
+pub struct Brush {
 }
 
-impl Pencil {
+impl Brush {
     fn new() -> Self {
-        Pencil {
+        Brush {
         }
     }
 }
 
-impl Tool for Pencil {
+impl Tool for Brush {
 
     fn on_click(&self, button_state: &gdk::ModifierType, settings: &Toolset, x: usize, y: usize) {
     }

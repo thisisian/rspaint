@@ -3,9 +3,11 @@ extern crate gtk;
 
 use controller::shape::Shape;
 use controller::color::RGBColor;
+use controller::view::CanvasView;
+use controller::view::CairoView;
 
-#[derive(Clone)]
 pub struct Canvas {
+    view: Box<CanvasView>,
     canvas: Vec<Vec<usize>>,
     width: usize,
     height: usize,
@@ -14,6 +16,7 @@ pub struct Canvas {
 impl Canvas {
     pub fn new(width: usize, height: usize) -> Self {
         Canvas {
+            view: Box::new(CairoView::new()),
             canvas: vec![vec![0; width]; height],
             width,
             height,
@@ -34,7 +37,9 @@ impl Canvas {
             if val == &true {
                 let rel_x = x - shape.get_width()/2 + i % shape.get_width();
                 let rel_y = y - shape.get_height()/2 + i / shape.get_width();
-                self.canvas[rel_x][rel_y] = color.as_usize();
+                if rel_x <= self.width && rel_y <= self.height {
+                    self.canvas[rel_x][rel_y] = color.as_usize();
+                }
             }
         })
     }

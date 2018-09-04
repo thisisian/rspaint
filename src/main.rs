@@ -4,119 +4,63 @@ extern crate gio;
 extern crate cairo;
 
 use gio::prelude::*;
-use gio::MenuExt;
 
 use gtk::prelude::*;
-use gtk::ApplicationWindow;
-use gtk::Orientation::*;
+use gtk::Builder;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::env::args;
-use std::option::Option::*;
+use enums::ToolNames;
 
+pub mod enums;
 mod controller;
 
-use controller::Controller;
+use controller::{Controller};
 
-fn initialize(application: &gtk::Application) {
-    let controller = Controller::new();
+fn build_ui(application: &gtk::Application, controller: Rc<RefCell<Controller>>) {
+    let main_window_src = include_str!(r"./ui/main_window.ui");
+    let builder = Builder::new();
 
-    let window = ApplicationWindow::new(application);
-    window.set_title("RSPaint");
-    window.set_default_size(500, 500); // TODO: Set to screen resolution?
-    window.connect_delete_event(|_, _| {
+    // TODO: Why is Builder::new_from_string() not available???
+    let builder = gtk::Builder::new();
+    builder.add_from_string(main_window_src).expect("Cannot add main_window_src");
+
+    let main_window: gtk::Window = builder.get_object("main_window").expect("Could not get main_window");
+    let brush_selector: gtk::ToggleButton = builder.get_object("brush_selector").expect("Could not get pencil_selector");
+    let eraser_selector: gtk::ToggleButton = builder.get_object("eraser_selector").expect("Could not get eraser_selector");
+    let drawing_area: gtk::DrawingArea = builder.get_object("drawing_area").expect("Could not get drawing_area");
+
+    main_window.connect_delete_event(|_, _| {
         gtk::main_quit();
         Inhibit(false)
     });
 
-    let h_box = gtk::Box::new(Horizontal, 0);
-
-    let tool_box = gtk::Box::new(Vertical, 0);
-    build_tool_menu(&tool_box, controller.clone());
-
-    let canvas_box = gtk::Box::new(Vertical, 0);
-    canvas_box.pack_start(&controller.borrow().get_drawing_area(), false, false, 10);
-
-    h_box.pack_start(&tool_box, false, false, 0);
-    h_box.pack_start(&canvas_box, false, false, 10);
-    window.add(&h_box);
-
-    build_menu(application);
-    window.show_all();
-}
-
-fn build_tool_menu(tool_box: &gtk::Box, controller: Rc<RefCell<Controller>>) {
-    let pencil_button = gtk::ToggleButton::new();
-    let eraser_button = gtk::ToggleButton::new();
-
-    let pencil_icon = gtk::Image::new_from_icon_name("face-smile", gtk::IconSize::SmallToolbar.into());
-    let eraser_icon = gtk::Image::new_from_icon_name("face-sad", gtk::IconSize::SmallToolbar.into());
-    pencil_button.set_image(&pencil_icon);
-    eraser_button.set_image(&eraser_icon);
-    pencil_button.set_label("Pencil");
-    eraser_button.set_label("Eraser");
-
-    let pencil_button_clone = pencil_button.clone();
-    pencil_button.connect_toggled(|this| {
-    });
-    let eraser_button_clone = eraser_button.clone();
-    eraser_button.connect_toggled(|this| {
+    // Tool selector buttons
+    let controller_clone = controller.clone();
+    let eraser_selector_clone = eraser_selector.clone();
+    brush_selector.connect_clicked(move |_| {
+        eraser_selector_clone.set_active(false);
+        controller_clone.borrow_mut().set_tool(ToolNames::Brush);
     });
 
-    tool_box.pack_start(&pencil_button, false, false, 10);
-    tool_box.pack_start(&eraser_button, false, false, 0);
-}
-
-fn build_menu(application: &gtk::Application) {
-    let menu_bar = gio::Menu::new();
-
-    let file_menu = gio::Menu::new();
-    let file_sec1 = gio::Menu::new();
-    let file_sec2 = gio::Menu::new();
-
-    file_sec1.append("New", "app.new");
-    file_sec1.append("Open", "app.open");
-    file_sec1.append("Save", "app.save");
-    file_sec1.append("Save As", "app.save_as");
-
-    file_sec2.append("Exit", "app.exit");
-
-    file_menu.append_section(None, &file_sec1);
-    file_menu.append_section(None, &file_sec2);
-
-    menu_bar.append_submenu("File", &file_menu);
-
-    let edit_menu = gio::Menu::new();
-    let edit_sec1 = gio::Menu::new();
-    let edit_sec2 = gio::Menu::new();
-    let edit_sec3 = gio::Menu::new();
-
-    edit_sec1.append("Undo", "app.undo");
-    edit_sec1.append("Repeat", "app.repeat");
-    edit_sec2.append("Cut", "app.cut");
-    edit_sec2.append("Copy", "app.copy");
-    edit_sec2.append("Paste", "app.paste");
-    edit_sec2.append("Clear Selection", "app.clear_selection");
-    edit_sec2.append("Select All", "app.select_all");
-    edit_sec3.append("Copy To", "app.copy_to");
-    edit_sec3.append("Copy From", "app.copy_from");
-
-    edit_menu.append_section(None, &edit_sec1);
-    edit_menu.append_section(None, &edit_sec2);
-    edit_menu.append_section(None, &edit_sec3);
-
-    menu_bar.append_submenu("Edit", &edit_menu);
-
-    application.set_menubar(&menu_bar);
+    let controller_clone = controller.clone();
+    let brush_selector_clone = eraser_selector.clone();
+    eraser_selector.connect_clicked(move |_| {
+        brush_selector.set_active(false);
+        controller_clone.borrow_mut().set_tool(ToolNames::Eraser);
+    });
+    main_window.show_all();
 }
 
 fn main() {
     let application = gtk::Application::new("org.github.thisisian.rspaint",
                                             gio::ApplicationFlags::empty()).expect("Initialization Failed...");
 
+    let controller = Controller::new();
+
     application.connect_startup(move |app| {
-        initialize(app)
+        build_ui(app, controller.clone())
     });
 
     application.connect_activate(|_| {});
