@@ -10,26 +10,44 @@ pub mod color;
 mod canvas;
 mod shape;
 mod tools;
+mod view;
 
 use self::tools::Toolset;
 use self::canvas::Canvas;
+use self::color::RGBColor;
+use self::tools::Tool;
+use enums::ToolNames;
 
 const CANVAS_WIDTH: usize = 400;
 
 pub struct Controller {
+    model: canvas::Canvas,
     drawing_area: gtk::DrawingArea,
     tools: Toolset,
-    model: canvas::Canvas,
+    current_tool: ToolNames,
+    fg_color: RGBColor,
+    bg_color: RGBColor,
 }
+
 
 impl Controller {
     // Create the controller, creates a shared reference 
     pub fn new() -> (Rc<RefCell<Controller>>) {
+        let drawing_area = gtk::DrawingArea::new();
+        let tools = Toolset::new();
+        let model = Canvas::new(CANVAS_WIDTH, CANVAS_WIDTH);
+        let fg_color = color::BLACK;
+        let bg_color = color::WHITE;
+
         let ctrl = Rc::new(RefCell::new(Controller {
-            drawing_area: gtk::DrawingArea::new(),
-            tools: Toolset::new(),
-            model: Canvas::new(CANVAS_WIDTH, CANVAS_WIDTH),
+            drawing_area,
+            tools,
+            model,
+            current_tool : ToolNames::Brush,
+            fg_color,
+            bg_color,
         }));
+        
 
         Controller::init_drawing_area(ctrl.clone());
         ctrl
@@ -63,10 +81,28 @@ impl Controller {
             Inhibit(false)
         });
         
-        //Register events
+        //TODO: Register events
     }
 
     pub fn get_drawing_area(&self) -> gtk::DrawingArea {
         self.drawing_area.clone()
+    }
+
+    pub fn set_tool(&mut self, tool: ToolNames) {
+        self.current_tool = tool;
+    }
+}
+
+// Operations on the model
+
+impl Controller {
+
+}
+
+// Operations on view
+
+impl Controller {
+    fn update_view() {
+
     }
 }
