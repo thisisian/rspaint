@@ -6,90 +6,99 @@ use gtk::prelude::*;
 
 use std::f64::consts::SQRT_2;
 use std::f64::consts::PI;
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::collections::HashMap;
 use controller::color::RGBColor;
-use enums::ToolNames;
 
 // Default width for tools
 const DEFAULT_WIDTH: usize = 5;
 const DEFAULT_FG_COLOR: RGBColor = super::color::BLACK;
 const DEFAULT_BG_COLOR: RGBColor = super::color::WHITE;
 
-/// Toolset holds all tools and their states and settings
-pub struct Toolset {
-    width: usize,
-    brush: Brush,
-    eraser: Eraser,
-}
-
-impl Toolset {
-    pub fn new() -> Self {
-        // For default tool, declare pencil outside of struct declaration
-        let pencil = Rc::new(RefCell::new(Brush::new()));
-        Toolset {
-            width: DEFAULT_WIDTH,
-            brush: Brush::new(),
-            eraser: Eraser::new(),
-        }
-    }
-}
-
 // Tool is a tool which can be used on the canvas
 pub trait Tool {
-    fn on_click(&self, state: &gdk::ModifierType, settings: &Toolset, x: usize, y: usize);
-    fn on_movement(&self, state: &gdk::ModifierType, settings: &Toolset, x1: usize, y1: usize, x2: usize, y2: usize);
-    fn on_release(&self, state: &gdk::ModifierType, settings: &Toolset, x:usize, y: usize);
+    fn get_name(&self) -> &'static str;
+    fn on_click(&self, x: usize, y: usize);
+    fn on_movement(&self, x1: usize, y1: usize, x2: usize, y2: usize);
+    fn on_release(&self, x:usize, y: usize);
 }
 
 // Pencil 
 
 pub struct Brush {
+    name: &'static str,
 }
 
 impl Brush {
     fn new() -> Self {
         Brush {
+            name: "Brush",
         }
     }
 }
 
 impl Tool for Brush {
 
-    fn on_click(&self, button_state: &gdk::ModifierType, settings: &Toolset, x: usize, y: usize) {
+    fn get_name(&self) -> &'static str {
+        self.name
     }
 
-    fn on_movement(&self, button_state:&gdk::ModifierType, settings: &Toolset, x1: usize, y1: usize, x2:usize, y2: usize) {
+    fn on_click(&self, x: usize, y: usize) {
+        unimplemented!()
     }
 
-    fn on_release(&self, button_state:&gdk::ModifierType, settings: &Toolset, x: usize, y: usize) {
+    fn on_movement(&self,  x1: usize, y1: usize, x2:usize, y2: usize) {
+        unimplemented!()
+    }
+
+    fn on_release(&self,  x: usize, y: usize) {
+        unimplemented!()
     }
 }
 
 // Eraser
 
 pub struct Eraser {
+    name: &'static str,
 }
 
 impl Eraser {
     fn new() -> Self {
         Eraser {
+            name: "Eraser",
         }
     }
 }
 
 impl Tool for Eraser {
-    fn on_click(&self, state: &gdk::ModifierType, settings: &Toolset, x: usize, y: usize){
-    }
-    
-    fn on_movement(&self, state: &gdk::ModifierType, settings: &Toolset, x1: usize, y1: usize, x2:usize, y2: usize){
+
+    fn get_name(&self) -> &'static str {
+        self.name
     }
 
-    fn on_release(&self, state: &gdk::ModifierType, settings: &Toolset, x: usize, y: usize){
+    fn on_click(&self, x: usize, y: usize){
+        unimplemented!()
+    }
+    
+    fn on_movement(&self, x1: usize, y1: usize, x2:usize, y2: usize){
+        unimplemented!()
+    }
+
+    fn on_release(&self, x: usize, y: usize){
+        unimplemented!()
     }
 }
 
 // Utility functions
+
+// Creates a HashSet of all the tools  
+pub fn create_toolset() -> HashMap<&'static str, Box<Tool>> {
+    let mut ret: HashMap<&'static str, Box<Tool>> = HashMap::new();
+    let eraser = Box::new(Eraser::new());
+    ret.insert(eraser.get_name(), eraser);
+    let brush = Box::new(Brush::new());
+    ret.insert(brush.get_name(), brush);
+    ret
+}
 
 fn draw_line(da: &gtk::DrawingArea,
              cr: &cairo::Context,

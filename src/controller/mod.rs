@@ -5,6 +5,7 @@ extern crate cairo;
 use gtk::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::collections::HashMap;
 
 pub mod color;
 mod canvas;
@@ -12,71 +13,70 @@ mod shape;
 mod tools;
 mod view;
 
-use self::tools::Toolset;
 use self::canvas::Canvas;
 use self::color::RGBColor;
 use self::tools::Tool;
-use enums::ToolNames;
 
 const CANVAS_WIDTH: usize = 400;
 
 pub struct Controller {
-    model: canvas::Canvas,
-    drawing_area: gtk::DrawingArea,
-    tools: Toolset,
-    current_tool: ToolNames,
+    tools: HashMap<&'static str, Box<Tool>>,
+    current_tool: Option<Box<Tool>>,
     fg_color: RGBColor,
     bg_color: RGBColor,
+    drawing_area: gtk::DrawingArea,
+    canvas: canvas::Canvas,
 }
 
 
 impl Controller {
     // Create the controller, creates a shared reference 
     pub fn new() -> (Rc<RefCell<Controller>>) {
-        let drawing_area = gtk::DrawingArea::new();
-        let tools = Toolset::new();
-        let model = Canvas::new(CANVAS_WIDTH, CANVAS_WIDTH);
+        let tools: HashMap<&'static str, Box<Tool>> = tools::create_toolset();
         let fg_color = color::BLACK;
         let bg_color = color::WHITE;
+        let drawing_area = gtk::DrawingArea::new();
+        Controller::init_drawing_area(&drawing_area);
+        let canvas = Canvas::new(CANVAS_WIDTH, CANVAS_WIDTH, &drawing_area);
 
         let ctrl = Rc::new(RefCell::new(Controller {
-            drawing_area,
             tools,
-            model,
-            current_tool : ToolNames::Brush,
+            current_tool : None,
             fg_color,
             bg_color,
+            drawing_area,
+            canvas,
         }));
         
+        ctrl.borrow_mut().swap_tool("Brush");
 
-        Controller::init_drawing_area(ctrl.clone());
         ctrl
     }
 
-    fn init_drawing_area(ctrl: Rc<RefCell<Controller>>) {
-        ctrl.borrow().get_drawing_area().set_size_request(CANVAS_WIDTH as i32, CANVAS_WIDTH as i32);
+    fn init_drawing_area(da: &gtk::DrawingArea) {
+        da.set_size_request(CANVAS_WIDTH as i32, CANVAS_WIDTH as i32);
 
         // Emits when drawing_area's window's position changes
-        ctrl.borrow().drawing_area.connect_configure_event(|da, _| {
+        da.connect_configure_event(|da, _| {
             true
         });
 
         // Emits when drawing area is redrawn
-        ctrl.borrow().drawing_area.connect_draw(|da, ctx| {
+        da.connect_draw(|da, ctx| {
             Inhibit(false)
         }); 
 
-        ctrl.borrow().drawing_area.connect_button_press_event(|da, event| {
+        da.connect_button_press_event(|da, event| {
             let state = event.get_state();
             Inhibit(false)
         });
 
-        ctrl.borrow().drawing_area.connect_motion_notify_event(|da, event| {
+        da.connect_motion_notify_event(|da, event| {
             let state = event.get_state();
             Inhibit(false)
         });
 
-        ctrl.borrow().drawing_area.connect_button_release_event(|da, event| {
+        da.connect_button_release_event(|da, event| {
             let state = event.get_state();
             Inhibit(false)
         });
@@ -88,8 +88,19 @@ impl Controller {
         self.drawing_area.clone()
     }
 
-    pub fn set_tool(&mut self, tool: ToolNames) {
-        self.current_tool = tool;
+}
+
+// Operations on Tools 
+
+impl Controller {
+    // Swaps in `tool` into `current_tool`
+    pub fn swap_tool(&mut self, tool: &'static str) {
+        let new_tool = self.tools.remove(tool).expect("Failed to get tool");
+        if self.current_tool.is_some() {
+            let old_tool = self.current_tool.take().unwrap();
+            self.tools.insert(old_tool.get_name(), old_tool);
+        }
+        self.current_tool = Some(new_tool);
     }
 }
 
@@ -97,12 +108,4 @@ impl Controller {
 
 impl Controller {
 
-}
-
-// Operations on view
-
-impl Controller {
-    fn update_view() {
-
-    }
 }

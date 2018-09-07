@@ -14,9 +14,9 @@ pub struct Canvas {
 }
 
 impl Canvas {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(width: usize, height: usize, da: &gtk::DrawingArea) -> Self {
         Canvas {
-            view: Box::new(CairoView::new()),
+            view: Box::new(CairoView::new(da)),
             canvas: vec![vec![0; width]; height],
             width,
             height,
@@ -33,14 +33,15 @@ impl Canvas {
 
     // Draw Shape at (x, y)
     pub fn draw(&mut self, shape: Shape, color: RGBColor, x: usize, y: usize) {
-        shape.get_data().into_iter().flatten().enumerate().for_each(|(i, val)| {
-            if val == &true {
-                let rel_x = x - shape.get_width()/2 + i % shape.get_width();
-                let rel_y = y - shape.get_height()/2 + i / shape.get_width();
-                if rel_x <= self.width && rel_y <= self.height {
-                    self.canvas[rel_x][rel_y] = color.as_usize();
-                }
-            }
-        })
+        unimplemented!()
+       // shape.get_data().into_iter().flatten().enumerate().for_each(|(i, val)| {
+       //     if val == &true {
+       //         let rel_x = x - shape.get_width()/2 + i % shape.get_width();
+       //         let rel_y = y - shape.get_height()/2 + i / shape.get_width();
+       //         if rel_x <= self.width && rel_y <= self.height {
+       //             self.canvas[rel_x][rel_y] = color.as_usize();
+       //         }
+       //     }
+       // })
     }
 }

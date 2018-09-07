@@ -1,3 +1,4 @@
+
 extern crate gtk;
 extern crate gdk;
 extern crate gio;
@@ -11,7 +12,6 @@ use gtk::Builder;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::env::args;
-use enums::ToolNames;
 
 pub mod enums;
 mod controller;
@@ -41,14 +41,14 @@ fn build_ui(application: &gtk::Application, controller: Rc<RefCell<Controller>>)
     let eraser_selector_clone = eraser_selector.clone();
     brush_selector.connect_clicked(move |_| {
         eraser_selector_clone.set_active(false);
-        controller_clone.borrow_mut().set_tool(ToolNames::Brush);
+        controller_clone.borrow_mut().swap_tool("Brush");
     });
 
     let controller_clone = controller.clone();
     let brush_selector_clone = eraser_selector.clone();
     eraser_selector.connect_clicked(move |_| {
         brush_selector.set_active(false);
-        controller_clone.borrow_mut().set_tool(ToolNames::Eraser);
+        controller_clone.borrow_mut().swap_tool("Eraser");
     });
     main_window.show_all();
 }
