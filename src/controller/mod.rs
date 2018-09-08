@@ -25,19 +25,16 @@ pub struct Controller {
     fg_color: RGBColor,
     bg_color: RGBColor,
     drawing_area: gtk::DrawingArea,
-    canvas: canvas::Canvas,
+    canvas: Option<canvas::Canvas>,
 }
 
 
 impl Controller {
     // Create the controller, creates a shared reference 
-    pub fn new() -> (Rc<RefCell<Controller>>) {
+    pub fn new(drawing_area: gtk::DrawingArea) -> (Rc<RefCell<Controller>>) {
         let tools: HashMap<&'static str, Box<Tool>> = tools::create_toolset();
         let fg_color = color::BLACK;
         let bg_color = color::WHITE;
-        let drawing_area = gtk::DrawingArea::new();
-        Controller::init_drawing_area(&drawing_area);
-        let canvas = Canvas::new(CANVAS_WIDTH, CANVAS_WIDTH, &drawing_area);
 
         let ctrl = Rc::new(RefCell::new(Controller {
             tools,
@@ -45,19 +42,23 @@ impl Controller {
             fg_color,
             bg_color,
             drawing_area,
-            canvas,
+            canvas : None,
         }));
         
         ctrl.borrow_mut().swap_tool("Brush");
+        Controller::init_drawing_area(ctrl.clone());
 
         ctrl
     }
 
-    fn init_drawing_area(da: &gtk::DrawingArea) {
+    fn init_drawing_area(ctrl: Rc<RefCell<Controller>>) {
+        let da = ctrl.borrow().drawing_area.clone();
         da.set_size_request(CANVAS_WIDTH as i32, CANVAS_WIDTH as i32);
 
         // Emits when drawing_area's window's position changes
-        da.connect_configure_event(|da, _| {
+        let ctrl_clone = ctrl.clone();
+        da.connect_configure_event(move |da, _| {
+            ctrl_clone.borrow_mut().canvas = Some(Canvas::new(CANVAS_WIDTH, CANVAS_WIDTH, da));
             true
         });
 

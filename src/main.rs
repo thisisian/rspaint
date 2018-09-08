@@ -18,7 +18,8 @@ mod controller;
 
 use controller::{Controller};
 
-fn build_ui(application: &gtk::Application, controller: Rc<RefCell<Controller>>) {
+// Builds UI of main window with gtk builder
+fn build_ui(application: &gtk::Application) {
     let main_window_src = include_str!(r"./ui/main_window.ui");
     let builder = Builder::new();
 
@@ -30,6 +31,13 @@ fn build_ui(application: &gtk::Application, controller: Rc<RefCell<Controller>>)
     let brush_selector: gtk::ToggleButton = builder.get_object("brush_selector").expect("Could not get pencil_selector");
     let eraser_selector: gtk::ToggleButton = builder.get_object("eraser_selector").expect("Could not get eraser_selector");
     let drawing_area: gtk::DrawingArea = builder.get_object("drawing_area").expect("Could not get drawing_area");
+    
+    drawing_area.connect_configure_event(move |da, _| {
+        da.get_window().expect("Failed");
+        true
+    });
+
+    let controller = Controller::new(drawing_area);
 
     main_window.connect_delete_event(|_, _| {
         gtk::main_quit();
@@ -57,10 +65,8 @@ fn main() {
     let application = gtk::Application::new("org.github.thisisian.rspaint",
                                             gio::ApplicationFlags::empty()).expect("Initialization Failed...");
 
-    let controller = Controller::new();
-
     application.connect_startup(move |app| {
-        build_ui(app, controller.clone())
+        build_ui(app)
     });
 
     application.connect_activate(|_| {});

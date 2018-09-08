@@ -32,6 +32,7 @@ impl CairoView {
                 da.get_allocated_height())
             .expect("Failed to create surface");
         let ctx = Context::new(&surface);
+        ctx.set_antialias(cairo::Antialias::None);
         CairoView {
             ctx,
             surface
