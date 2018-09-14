@@ -1,4 +1,5 @@
 extern crate cairo;
+#[derive(Clone)]
 pub struct RGBColor(u8, u8, u8);
 
 pub const BLACK: RGBColor = RGBColor(0, 0, 0);
@@ -19,7 +20,7 @@ impl RGBColor {
         self.2 = b;
     }
     
-    pub fn get_cairo_pattern(&self) -> cairo::SolidPattern {
+    pub fn as_cairo_pattern(&self) -> cairo::SolidPattern {
         cairo::SolidPattern::from_rgb(self.0 as f64 / 128., self.1 as f64 / 128., self.2 as f64 / 128.)
     }
 

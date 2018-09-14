@@ -45,7 +45,7 @@ impl Controller {
             canvas : None,
         }));
         
-        ctrl.borrow_mut().swap_tool("Brush");
+        ctrl.borrow_mut().set_tool("Brush");
         Controller::init_drawing_area(ctrl.clone());
 
         ctrl
@@ -63,7 +63,13 @@ impl Controller {
         });
 
         // Emits when drawing area is redrawn
-        da.connect_draw(|da, ctx| {
+        let ctrl_clone = ctrl.clone();
+        da.connect_draw(move |da, ctx| {
+            ctrl_clone.borrow_mut().canvas.as_mut().unwrap().update_view();
+            let surface = ctrl_clone.borrow_surface();
+            ctx.set_source_surface(surface);
+            ctx.fill();
+            da.queue_draw();
             Inhibit(false)
         }); 
 
@@ -91,11 +97,23 @@ impl Controller {
 
 }
 
+// Operations on view 
+
+impl Controller {
+    fn borrow_surface(&self) -> &cairo::Surface {
+        self.canvas.as_ref().unwrap().borrow_view().borrow_surface()
+    }
+}
+
 // Operations on Tools 
 
 impl Controller {
-    // Swaps in `tool` into `current_tool`
-    pub fn swap_tool(&mut self, tool: &'static str) {
+    // Set `current_tool` to `tool` 
+    pub fn set_tool(&mut self, tool: &'static str) {
+        if self.current_tool.as_ref().map_or(false, |x| x.get_name() == tool) {
+            // Short circuit if trying to set tool to current tool
+            return
+        }
         let new_tool = self.tools.remove(tool).expect("Failed to get tool");
         if self.current_tool.is_some() {
             let old_tool = self.current_tool.take().unwrap();

@@ -6,9 +6,10 @@ use gtk::DrawingArea;
 use gtk::WidgetExt;
 use cairo::Context;
 use cairo::Surface;
+use controller::color::RGBColor;
 
 pub trait CanvasView {
-   fn update(&mut self, Canvas);
+   fn update(&mut self, &Canvas);
 }
 
 pub struct CairoView {
@@ -17,8 +18,15 @@ pub struct CairoView {
 }
 
 impl CanvasView for CairoView {
-    fn update(&mut self, canvas: Canvas) {
-        unimplemented!()
+    fn update(&mut self, canvas: &Canvas) {
+        let width = canvas.get_width();
+        let height = canvas.get_height();
+        let pixel_data = canvas.borrow_pixels();
+        for (i, row) in pixel_data.iter().enumerate() {
+            for (j, pixel) in row.iter().enumerate() {
+                self.draw_pixel(j, i, pixel);
+            }
+        }
     }
 }
 
@@ -37,5 +45,11 @@ impl CairoView {
             ctx,
             surface
         }
+    }
+
+    fn draw_pixel(&self, x: usize, y: usize, color: &RGBColor) {
+        self.ctx.set_source(&color.as_cairo_pattern());
+        self.ctx.rectangle(x as f64, y as f64, 1., 1.);
+        self.ctx.fill();
     }
 }
