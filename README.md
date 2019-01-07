@@ -1,6 +1,5 @@
 # rspaint
 
-A simple raster editor with a familiar interface.
+A simple raster editor with a familiar interface using GTK+ library.
 
-## Status: In development
-
+## Status: Not in development
