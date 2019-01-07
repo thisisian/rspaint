@@ -11,7 +11,6 @@ use gtk::prelude::*;
 use std::env::args;
 
 pub mod enums;
-<<<<<<< HEAD
 mod controller;
 
 use controller::{Controller};
